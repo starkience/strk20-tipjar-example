@@ -25,9 +25,13 @@
   usable, else "Class ... is not declared".
 
 ## Part 1 — public tip (Task 7)
-- Tip tx: (pending)
-- Tipper address: (pending)
-- Amount: (pending)
+- Tip tx: `0x24d670ad892cae9c58058f4a1ad28a0a320eb6e3c6ca8ec5c279ecba80d8228`
+- Tipper address: `0x463f549c8ecf0dad3d26dfd35cb5da02d888e9881e34eadd08d111d167ad30f`
+- Amount: 1 STRK (`0xde0b6b3a7640000` = 1e18)
+- Timestamp: `0x6a635003`
+- Emitted `Tipped` event, publicly readable — this is exactly what the "LATEST
+  TIPS" wall reads. Anyone can see tipper -> creator, amount, time on Voyager/Starkscan.
+- Explorer: https://starkscan.co/tx/0x24d670ad892cae9c58058f4a1ad28a0a320eb6e3c6ca8ec5c279ecba80d8228
 
 ## Part 2 — private instance (Tasks 8-10)
 - Wallet used: (decided at Task 9)
