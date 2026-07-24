@@ -1,12 +1,10 @@
-// TipWall — the scoreboard (raised / count) and the "LATEST TIPS" list.
-// Every row here comes from a public `Tipped` event. Private (STRK20) tips
-// never emit that event, so by construction they never appear in this list —
-// that contrast is the whole point of the example.
-import { formatStrk, type TipEvent } from "../lib/tipjar";
+// TipWall — the scoreboard summary (RAISED / public tip count) shown in the main
+// cabinet. Totals come from the contract's get_total(); the transaction list
+// lives in the right-side TxLog. Both reflect only PUBLIC tips — private (STRK20)
+// tips never touch the contract.
+import { formatStrk } from "../lib/tipjar";
 
-const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
-
-export function TipWall(props: { tips: TipEvent[]; total: bigint; count: number }) {
+export function TipWall(props: { total: bigint; count: number }) {
   return (
     <section className="tip-wall">
       <div className="scoreboard">
@@ -16,38 +14,12 @@ export function TipWall(props: { tips: TipEvent[]; total: bigint; count: number 
           <span className="scoreboard__unit">STRK</span>
         </div>
         <div className="scoreboard__cell">
-          <span className="scoreboard__label">TIPS</span>
+          <span className="scoreboard__label">PUBLIC TIPS</span>
           <span className="scoreboard__value">
             {String(props.count).padStart(3, "0")}
           </span>
         </div>
       </div>
-
-      <h2 className="tip-wall__title">◆ LATEST TIPS ◆</h2>
-      <ul className="tip-wall__list">
-        {props.tips.map((t) => (
-          <li key={t.txHash} className="tip-wall__row">
-            <a
-              className="tip-wall__who"
-              href={`https://voyager.online/tx/${t.txHash}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {short(t.tipper)}
-            </a>
-            <span className="tip-wall__amt">{formatStrk(t.amount)} STRK</span>
-            <span className="tip-wall__when">
-              {new Date(t.timestamp * 1000).toLocaleDateString()}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {props.tips.length === 0 && (
-        <p className="tip-wall__empty">NO TIPS YET — BE PLAYER ONE!</p>
-      )}
-      <p className="tip-wall__note">
-        🔒 Private tips don't appear here — only the creator's wallet sees them.
-      </p>
     </section>
   );
 }
