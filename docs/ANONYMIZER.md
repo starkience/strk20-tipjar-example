@@ -5,6 +5,13 @@
 > anonymizer pattern. Deploying it to mainnet requires a security audit owned by
 > the integrating team. Deployment is intentionally **not** done in this repo.
 
+> **Reference status: complete.** The contract is written, its on-chain ABI
+> surface is verified against real source (see the table below), and it passes
+> unit tests against a mock AVNU. What remains is the integrating team's phase:
+> a security **audit**, a **local-devnet integration test** (path documented
+> below), AVNU routing wiring, and deployment. Everything past this point is
+> owner-owned; this repo goes no further.
+
 ## The goal
 
 The simple tip jar sends a tip in the same token. This module explores a harder
