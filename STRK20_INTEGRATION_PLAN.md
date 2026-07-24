@@ -84,7 +84,7 @@ never appear in the public "LATEST TIPS" wall.
 6. **Manual check (you):** connect Ready via the app; confirm the private action
    appears with Ready and is hidden with a non-privacy wallet.
 
-## 6. Phase 2 — the "Tip privately" action
+## 6. Phase 2 — the "Tip privately" action ✅ built 2026-07-24 (live verification pending)
 
 1. Add a **"Tip privately"** button in `app/src/components/TipForm.tsx`
    alongside the public "INSERT TIP", wired through a new handler in
@@ -157,6 +157,10 @@ transfer is exercised on mainnet.
 - **Ready** extension's dapp-facing behavior: capability-detection mechanism and
   whether it exposes shielded balances (gates optional Phase 3).
 - **Xverse** dapp-facing Wallet API status; **fee/paymaster** UX design.
+- **Deposit+transfer batching (verify live):** Phase 2 sends
+  `strk20InvokeTransaction([deposit, transfer])` in one request. Confirm against
+  the Ready wallet on mainnet that a freshly-deposited note can be spent by the
+  transfer in the same transaction; if not, split into two sequential requests.
 - get-starknet **v6 import surface** vs the current v4 usage in
   `useTipJar.ts` (breaking migration). ✅ resolved in Phase 1: `createStore`
   from `@starknet-io/get-starknet-discovery`; `WalletWithStarknetFeatures` from

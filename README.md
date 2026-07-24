@@ -19,10 +19,12 @@ plugs into an existing app**, this is meant to be read top to bottom.
 | Part | What | State |
 | --- | --- | --- |
 | **Part 1 — Public tip jar** | Cairo contract + React frontend, deployed on mainnet | ✅ Done (this codebase) |
-| **Part 2 — STRK20 privacy** | A "Tip privately" path via the STRK20 Wallet API | 🚧 Next — documented step-by-step in [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md) |
+| **Part 2 — STRK20 privacy** | A "Tip privately" path via the STRK20 Wallet API, added **with the [STRK20 agent skill](https://strk20-by-example.org/agent-skill)** | ✅ Built — live mainnet verification pending. Full step-by-step log: [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md) |
 
 The point of the repo is Part 2. Part 1 exists so there is a real, working app
 to add privacy *to* — and so the "everything is public" problem is concrete.
+Part 2 was built by running the STRK20 agent skill against this repo; the log
+records every step so you can reproduce the process on your own app.
 
 ---
 

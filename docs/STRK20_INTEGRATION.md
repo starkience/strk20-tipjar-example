@@ -77,9 +77,9 @@ hidden-vs-visible table. Phases:
 
 ## Step 5 — Execute
 
-> ⏳ **Awaiting plan approval.** Per the skill, code changes begin only after the
-> developer approves `STRK20_INTEGRATION_PLAN.md`. Execution runs one phase at a
-> time, each ending with a manual wallet check.
+> ✅ Plan approved; Phases 1 and 2 built. Execution ran one phase at a time, each
+> ending with a manual wallet check. Remaining: the live mainnet private-tip
+> verification (below).
 
 ### Log (filled as phases complete)
 
@@ -101,5 +101,36 @@ hidden-vs-visible table. Phases:
   - Verified headlessly: `npm run build` (typecheck) passes, `npm test` 6/6.
     (Non-fatal: a get-starknet transitive dep triggers a bundler `eval` advisory.)
   - **Manual check pending** — see below.
-- [ ] Phase 2 — "Tip privately" private transfer
+- [x] **Phase 2 — "Tip privately" private transfer** ✅ built 2026-07-24
+      (live mainnet verification pending)
+  - Added `sendPrivateTip` in `app/src/hooks/useTipJar.ts`: a batched
+    **`deposit` + `transfer`** via `WalletAccountV6.strk20InvokeTransaction`.
+    It shields exactly the tip amount from public STRK, then privately transfers
+    it to `CONFIG.ownerAddress` inside the pool. Sourcing from public STRK every
+    time means **the app never reads the tipper's shielded balance** — only the
+    `deposit` and `transfer` actions are used (least privilege).
+  - The private path calls **no contract** and emits **no `Tipped` event**, so it
+    never appears in the tip wall. `TipWall` now carries an honest note:
+    *"Private tips don't appear here — only the creator's wallet sees them."*
+  - UI: a **🔒 TIP PRIVATELY** button in `TipForm`, rendered only when the
+    connected wallet is STRK20-capable (`privacySupported`). Public tipping is
+    untouched. Marquee/footer updated to describe both modes honestly.
+  - Exact action shapes taken from the installed types
+    (`@starknet-io/types-js` → `STRK20_DEPOSIT_ACTION` / `STRK20_TRANSFER_ACTION`);
+    method names from the WalletAccount guide — **no guessing**, per the skill.
+  - Verified headlessly: `npm run build` (typecheck) passes, `npm test` 6/6.
+  - **Open item (verify live):** whether a freshly-deposited note is spendable by
+    the transfer in the *same* transaction, or shield + transfer must be two
+    requests. Validated in the manual mainnet check below.
 - [ ] Evidence: private tip result — what an observer sees vs. the creator's wallet
+      (captured during the manual mainnet check)
+
+## Using the skill (recap for readers)
+
+This whole Part 2 was produced by the **STRK20 agent skill** following its
+`SKILL.md` loop — Scan → Ask → Route → Plan → Execute — with a manual wallet
+check at each phase boundary. The skill's guardrails shaped the result: **app
+code only (no Cairo), no key material in files, capability-detect without
+reading balances, and honest hidden-vs-visible copy.** One real correction
+during the build (a balance-probe used for capability detection) was fixed both
+here and upstream in the skill itself.

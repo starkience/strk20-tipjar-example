@@ -10,8 +10,11 @@ app. It has two parts:
 
 1. **Part 1 (done):** a public tip jar — `TipJar` Cairo contract + React
    frontend, live on Starknet mainnet.
-2. **Part 2 (next):** add a **private** tipping path with the STRK20 Wallet API,
-   documenting every step in [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md).
+2. **Part 2 (built, live-verification pending):** a **private** tipping path via
+   the STRK20 Wallet API, added with the STRK20 agent skill. The `sendPrivateTip`
+   action in `app/src/hooks/useTipJar.ts` is a batched `deposit` + `transfer`;
+   it touches no contract and reads no balances. Every step is logged in
+   [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md).
 
 Optimize every change for a reader trying to learn *how STRK20 is integrated*.
 Clarity and comments matter more than cleverness.

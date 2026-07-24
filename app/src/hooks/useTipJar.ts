@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RpcProvider, WalletAccountV6, walletV6 } from "starknet";
 import { createStore } from "@starknet-io/get-starknet-discovery";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
+import type { STRK20_ACTION } from "@starknet-io/types-js";
 import { CONFIG } from "../config";
 import {
   buildTipCalls,
@@ -139,6 +140,52 @@ export function useTipJar() {
     [account, refresh],
   );
 
+  // PRIVATE tip: the STRK20 path. A batched deposit + transfer — shield exactly
+  // the tip amount from public STRK, then privately transfer it to the creator
+  // inside the pool. Sourcing from public STRK every time means the app never
+  // reads the tipper's shielded balance (least privilege — only `deposit` +
+  // `transfer` are used). The wallet holds the viewing key, selects notes, and
+  // generates the proof; the dapp only describes the actions.
+  //
+  // Unlike the public path this calls NO contract and emits NO `Tipped` event,
+  // so a private tip never appears in the tip wall. On-chain, an observer sees a
+  // pool interaction and the (public) shield leg — not the tipper->creator link.
+  const sendPrivateTip = useCallback(
+    async (amountStrk: string) => {
+      if (!account) throw new Error("connect a wallet first");
+      if (!privacySupported) {
+        throw new Error("this wallet does not support STRK20 private tips");
+      }
+      setError(null);
+      setTxPending(true);
+      try {
+        const amount = parseStrk(amountStrk);
+        const felt = `0x${amount.toString(16)}`;
+        const actions: STRK20_ACTION[] = [
+          { type: "deposit", token: CONFIG.strkAddress, amount: felt },
+          {
+            type: "transfer",
+            token: CONFIG.strkAddress,
+            amount: felt,
+            recipient: CONFIG.ownerAddress,
+          },
+        ];
+        const { transaction_hash } =
+          await account.strk20InvokeTransaction(actions);
+        await provider.waitForTransaction(transaction_hash);
+        // No refresh(): a private tip emits no public event, so there is
+        // nothing for the public wall to pick up — by design.
+        return transaction_hash;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        throw e;
+      } finally {
+        setTxPending(false);
+      }
+    },
+    [account, privacySupported],
+  );
+
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -150,6 +197,7 @@ export function useTipJar() {
     selectWallet,
     privacySupported,
     sendTip,
+    sendPrivateTip,
     tips,
     total,
     count,

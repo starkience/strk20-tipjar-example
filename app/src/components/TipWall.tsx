@@ -45,6 +45,9 @@ export function TipWall(props: { tips: TipEvent[]; total: bigint; count: number 
       {props.tips.length === 0 && (
         <p className="tip-wall__empty">NO TIPS YET — BE PLAYER ONE!</p>
       )}
+      <p className="tip-wall__note">
+        🔒 Private tips don't appear here — only the creator's wallet sees them.
+      </p>
     </section>
   );
 }

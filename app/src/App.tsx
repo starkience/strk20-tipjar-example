@@ -10,15 +10,24 @@ import "./App.css";
 export default function App() {
   const jar = useTipJar();
   const tipButtonRef = useRef<HTMLButtonElement>(null);
+  const privateButtonRef = useRef<HTMLButtonElement>(null);
   const walletRef = useRef<HTMLDivElement>(null);
 
   // Fire the retro feedback only once the tip is actually executed on-chain:
-  // sendTip resolves after the tx is confirmed. On failure it throws, so the
+  // the send resolves after the tx is confirmed. On failure it throws, so the
   // coin never flips for a rejected or reverted tip.
   const handleTip = async (amount: string) => {
     const result = await jar.sendTip(amount);
     playCoinSound();
     launchCoinFlight(tipButtonRef.current, walletRef.current);
+    return result;
+  };
+
+  // Same feedback, private path. The coin launches from the private button.
+  const handlePrivateTip = async (amount: string) => {
+    const result = await jar.sendPrivateTip(amount);
+    playCoinSound();
+    launchCoinFlight(privateButtonRef.current, walletRef.current);
     return result;
   };
 
@@ -59,8 +68,8 @@ export default function App() {
         )}
 
         <p className="marquee" aria-hidden>
-          ★ INSERT COIN ★ EVERY TIP IS PUBLIC ★ WHO · HOW MUCH · WHEN ★ VISIBLE
-          TO ANYONE ★
+          ★ INSERT COIN ★ PUBLIC TIPS ARE VISIBLE TO ANYONE ★ TIP PRIVATELY TO
+          HIDE WHO &amp; HOW MUCH ★ POWERED BY STRK20 ★
         </p>
 
         <div className="collector">
@@ -77,7 +86,10 @@ export default function App() {
           disabled={!jar.address}
           pending={jar.txPending}
           onTip={handleTip}
+          onPrivateTip={handlePrivateTip}
+          privateEnabled={jar.privacySupported}
           buttonRef={tipButtonRef}
+          privateButtonRef={privateButtonRef}
         />
 
         {!jar.address && (
@@ -98,7 +110,9 @@ export default function App() {
 
         <TipWall tips={jar.tips} total={jar.total} count={jar.count} />
       </main>
-      <p className="footer-credit">PUBLIC EDITION · POWERED BY STARKNET</p>
+      <p className="footer-credit">
+        STRK20 PRIVACY DEMO · PUBLIC + PRIVATE TIPS · POWERED BY STARKNET
+      </p>
     </div>
   );
 }
