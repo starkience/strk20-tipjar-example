@@ -1,95 +1,270 @@
-main {
+.screen {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 16px 48px;
+  gap: 14px;
+}
+
+/* ---- Cabinet card ---------------------------------------------------- */
+.cabinet {
+  width: 100%;
+  max-width: 620px;
+  background: var(--paper);
+  border: 4px solid var(--ink);
+  box-shadow: 10px 10px 0 var(--ink);
+  padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 48px 20px 64px;
 }
 
-header {
+.cabinet__top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  border-bottom: 4px dashed var(--ink);
+  padding-bottom: 16px;
 }
 
-header h1 {
-  margin: 0;
-  font-size: 32px;
-}
-
-header button {
-  font: inherit;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 2px solid var(--accent-border);
-  background: var(--accent-bg);
-  color: var(--text-h);
-  cursor: pointer;
-}
-
-header button:hover {
-  border-color: var(--accent);
-}
-
-.tagline {
-  color: var(--text);
-  font-size: 16px;
-}
-
-.tip-form {
+.brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-.tip-form input {
-  font: inherit;
-  flex: 1;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-h);
+.brand__coin {
+  width: 40px;
+  height: 40px;
+  display: block;
+  animation: coin-idle 1.6s steps(2, end) infinite;
 }
 
-.tip-form .unit {
-  color: var(--text);
-  font-size: 14px;
+.brand__title {
+  font-family: var(--display);
+  font-size: 24px;
+  color: var(--ink);
+  text-shadow: 3px 3px 0 var(--gold);
+  letter-spacing: 1px;
 }
 
-.tip-form button {
-  font: inherit;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: none;
-  background: var(--accent);
-  color: #fff;
+/* ---- 3D pressable buttons ------------------------------------------- */
+.btn {
+  font-family: var(--display);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  padding: 12px 16px;
   cursor: pointer;
+  box-shadow: 0 6px 0 var(--ink);
+  transform: translateY(0);
+  transition:
+    transform 40ms steps(2, end),
+    box-shadow 40ms steps(2, end);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:hover {
+  background: #fffdf5;
+}
+
+.btn:active {
+  transform: translateY(6px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: translateY(0);
+  box-shadow: 0 6px 0 var(--ink);
+}
+
+.btn--connect {
+  font-size: 11px;
+}
+
+.btn--tip {
+  background: var(--gold);
+  box-shadow: 0 6px 0 var(--gold-dark);
+  font-size: 13px;
   white-space: nowrap;
 }
-
-.tip-form button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.btn--tip:hover {
+  background: var(--gold-lit);
+}
+.btn--tip:active {
+  box-shadow: 0 0 0 var(--gold-dark);
+}
+.btn--tip:disabled {
+  box-shadow: 0 6px 0 var(--gold-dark);
 }
 
+/* ---- Marquee warning ------------------------------------------------- */
+.marquee {
+  font-family: var(--display);
+  font-size: 9px;
+  line-height: 1.9;
+  color: var(--red);
+  background: #fff5f5;
+  border: 3px solid var(--red);
+  padding: 8px 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+  animation: blink 1.1s steps(2, end) infinite;
+}
+
+/* ---- Coin collector (flight target) --------------------------------- */
+.collector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.collector__wallet {
+  width: 84px;
+  height: 84px;
+  display: block;
+  filter: drop-shadow(4px 4px 0 rgba(26, 26, 26, 0.25));
+}
+
+.collector__caption {
+  font-family: var(--display);
+  font-size: 9px;
+  color: var(--ink);
+  letter-spacing: 1px;
+}
+
+/* ---- Tip form -------------------------------------------------------- */
+.tip-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  border-top: 4px dashed var(--ink);
+  padding-top: 18px;
+}
+
+.tip-form__label {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tip-form__label-text {
+  font-family: var(--display);
+  font-size: 10px;
+  color: var(--ink);
+}
+
+.tip-form__field {
+  display: flex;
+  align-items: center;
+  border: 3px solid var(--ink);
+  background: var(--paper);
+}
+
+.tip-form__input {
+  font-family: var(--display);
+  font-size: 16px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 12px;
+  width: 100%;
+}
+
+.tip-form__unit {
+  font-family: var(--display);
+  font-size: 11px;
+  color: var(--gold-dark);
+  padding: 0 12px;
+  border-left: 3px solid var(--ink);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+/* ---- Status lines ---------------------------------------------------- */
+.hint,
 .error {
-  color: #e5484d;
-  font-size: 14px;
+  font-family: var(--display);
+  font-size: 10px;
+  line-height: 1.7;
+}
+.hint {
+  color: var(--blue);
+}
+.error {
+  color: var(--red);
+  word-break: break-word;
 }
 
+/* ---- Scoreboard + high scores --------------------------------------- */
 .tip-wall {
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
+  border-top: 4px solid var(--ink);
+  padding-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.tip-wall h2 {
-  margin: 0 0 12px;
+.scoreboard {
+  display: flex;
+  gap: 12px;
 }
 
-.tip-wall ul {
+.scoreboard__cell {
+  flex: 1;
+  background: var(--ink);
+  color: var(--gold-lit);
+  border: 3px solid var(--ink);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.scoreboard__label {
+  font-family: var(--display);
+  font-size: 9px;
+  color: #fff;
+  opacity: 0.7;
+}
+
+.scoreboard__value {
+  font-family: var(--display);
+  font-size: 20px;
+  color: var(--gold-lit);
+  text-shadow: 2px 2px 0 #000;
+  word-break: break-all;
+  text-align: center;
+}
+
+.scoreboard__unit {
+  font-family: var(--display);
+  font-size: 9px;
+  color: var(--gold);
+}
+
+.tip-wall__title {
+  font-family: var(--display);
+  font-size: 12px;
+  text-align: center;
+  color: var(--ink);
+}
+
+.tip-wall__list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -98,16 +273,105 @@ header button:hover {
   gap: 8px;
 }
 
-.tip-wall li {
-  font-size: 15px;
-  color: var(--text);
+.tip-wall__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "who amt" "when amt";
+  gap: 2px 12px;
+  align-items: center;
+  border: 3px solid var(--ink);
+  padding: 8px 10px;
+  font-family: var(--body);
+  font-size: 18px;
 }
 
-.tip-wall a {
-  color: var(--accent);
+.tip-wall__who {
+  grid-area: who;
+  font-family: var(--display);
+  font-size: 10px;
+  color: var(--blue);
   text-decoration: none;
 }
+.tip-wall__who:hover {
+  color: var(--ink);
+  background: var(--gold-lit);
+}
 
-.tip-wall a:hover {
-  text-decoration: underline;
+.tip-wall__amt {
+  grid-area: amt;
+  font-family: var(--display);
+  font-size: 12px;
+  color: var(--green);
+  justify-self: end;
+}
+
+.tip-wall__when {
+  grid-area: when;
+  font-size: 16px;
+  color: #666;
+}
+
+.tip-wall__empty {
+  font-family: var(--display);
+  font-size: 11px;
+  color: var(--gold-dark);
+  text-align: center;
+  padding: 10px 0;
+}
+
+.footer-credit {
+  font-family: var(--display);
+  font-size: 8px;
+  color: #999;
+  letter-spacing: 1px;
+}
+
+/* ---- Coin flight overlay (spawned on <body>) ------------------------- */
+.coin-flight {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  pointer-events: none;
+  z-index: 9999;
+  will-change: transform;
+}
+.coin-flight__spin {
+  width: 100%;
+  height: 100%;
+}
+.coin-flight__spin svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---- Keyframes ------------------------------------------------------- */
+@keyframes coin-idle {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(0.55);
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand__coin,
+  .marquee {
+    animation: none;
+  }
 }
