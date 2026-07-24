@@ -1,3 +1,6 @@
+// TipForm — amount input + the "INSERT TIP" button. Pure presentation: it calls
+// props.onTip(amount) and owns no chain logic. `buttonRef` lets the parent use
+// the button as the launch origin for the coin-flip animation.
 import { useState, type Ref } from "react";
 
 export function TipForm(props: {

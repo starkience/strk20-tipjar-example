@@ -1,3 +1,6 @@
+// Single source of truth for all on-chain addresses and network settings.
+// Point `tipJarAddress`/`ownerAddress`/`deployBlock` at your own deployment
+// (see docs/DEPLOYMENT.md) to run this against a jar you control.
 export const CONFIG = {
   rpcUrl: "https://rpc.starknet.lava.build/rpc/v0_9",
   strkAddress:

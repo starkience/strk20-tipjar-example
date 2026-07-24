@@ -1,3 +1,7 @@
+// TipWall — the scoreboard (raised / count) and the "LATEST TIPS" list.
+// Every row here comes from a public `Tipped` event. Private (STRK20) tips
+// never emit that event, so by construction they never appear in this list —
+// that contrast is the whole point of the example.
 import { formatStrk, type TipEvent } from "../lib/tipjar";
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;

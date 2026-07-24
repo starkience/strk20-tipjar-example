@@ -1,3 +1,16 @@
+// useTipJar — all of the app's Starknet wiring in one hook.
+//
+// Responsibilities:
+//   - connectWallet: connect a browser wallet via get-starknet + starknet.js
+//   - refresh:       read totals (get_total) and rebuild the tip wall from
+//                    Tipped events over RPC
+//   - sendTip:       submit the approve + tip multicall, wait for confirmation,
+//                    then refresh
+//
+// This is the entire public-tip integration surface. In Part 2, the private
+// tipping path is added ALONGSIDE this (a separate action that calls the
+// STRK20 Wallet API), leaving `sendTip` — the public path — untouched.
+
 import { useCallback, useEffect, useState } from "react";
 import { RpcProvider, WalletAccount } from "starknet";
 import { connect } from "get-starknet";

@@ -2,3 +2,6 @@ contracts/target/
 node_modules/
 dist/
 .env
+
+# Internal agent/workflow scratch — not part of the example
+.superpowers/
