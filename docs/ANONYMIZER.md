@@ -143,8 +143,17 @@ DEX). Don't imply otherwise in UI copy.
 2. Supply the **deployed AVNU Exchange address** (per network) and integrate
    AVNU's off-chain routing API to build the `routes` calldata. Optionally
    depend on AVNU's package instead of the vendored `avnu_models`.
-3. Develop/test against **testnet** via the SDK-direct path (the team controls
-   the account there); production user flows still go through the Wallet API.
+3. **Integration-test against a local devnet** (no mainnet, pre-audit). The
+   privacy monorepo ships an e2e harness that deploys the real pool + an
+   anonymizer and runs the full withdraw→invoke→credit flow:
+   - Install patched `starknet-devnet` v0.8.0-rc.3 + `@starkware-libs/starknet-privacy-sdk` (Node ≥ 24).
+   - Use `createDevnetTestEnv`; adapt `e2e/scripts/deploy-ekubo.ts` →
+     `deploy-avnu.ts` and `e2e/tests/devnet/swap-ekubo.test.ts` →
+     `swap-avnu.test.ts` for this contract.
+   This exercises the real pool `INVOKE_SELECTOR` handshake + open-note crediting
+   + atomic rollback. (A StarkNet *integration-sepolia* pool also exists, targeted
+   by the monorepo's `demo/` app via env config.) Production user flows still go
+   through the Wallet API.
 4. Test atomicity: success → output credited as a private note; revert → clean
    rollback, no stranded funds.
 5. Deploy, then wire the frontend `strk20InvokeTransaction` flow above.
