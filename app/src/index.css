@@ -24,9 +24,15 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  min-height: 100svh;
+  overflow: hidden; /* page never scrolls — inner list scrolls instead */
   background: var(--paper);
   /* faint pixel grid — keeps the page essentially white */
   background-image:
