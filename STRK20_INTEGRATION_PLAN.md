@@ -89,11 +89,14 @@ never appear in the public "LATEST TIPS" wall.
 1. Add a **"Tip privately"** button in `app/src/components/TipForm.tsx`
    alongside the public "INSERT TIP", wired through a new handler in
    `app/src/App.tsx` / `useTipJar` (kept separate from `sendTip`).
-2. Wire the STRK20 **private transfer** to `CONFIG.ownerAddress` via
-   `WalletAccountV6` (`strk20InvokeTransaction([...])` takes an array of
-   actions). If the tipper has no shielded balance, the flow shields first
-   (wallet-mediated). **Confirm exact method/action names against the
-   WalletAccount guide at build time.**
+2. Wire the private tip via `WalletAccountV6.strk20InvokeTransaction([...])` as a
+   **batched `deposit` + `transfer`**: shield exactly the tip amount from public
+   STRK, then privately transfer it to `CONFIG.ownerAddress`. This sources the
+   tip from public STRK every time, so **the app never reads the tipper's
+   shielded balance** (least privilege — only `deposit` + `transfer` are used;
+   no `strk20Balances`). **Verify at build time** (against the WalletAccount
+   guide / Ready) whether a freshly-deposited note can be spent in the *same*
+   transaction, or whether shield and transfer must be two sequential requests.
 3. **Invariant:** the private path does **not** call `TipJar` and emits no
    `Tipped` event → it never appears in "LATEST TIPS". Add honest UI copy near
    the wall: *"Private tips don't appear here — only the creator's wallet sees
