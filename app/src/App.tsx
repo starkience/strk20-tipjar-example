@@ -12,12 +12,14 @@ export default function App() {
   const tipButtonRef = useRef<HTMLButtonElement>(null);
   const walletRef = useRef<HTMLDivElement>(null);
 
-  // Fire the retro feedback the instant the player commits a tip: coin blip +
-  // a pixel coin that flips up into the wallet. The on-chain tx runs after.
-  const handleTip = (amount: string) => {
+  // Fire the retro feedback only once the tip is actually executed on-chain:
+  // sendTip resolves after the tx is confirmed. On failure it throws, so the
+  // coin never flips for a rejected or reverted tip.
+  const handleTip = async (amount: string) => {
+    const result = await jar.sendTip(amount);
     playCoinSound();
     launchCoinFlight(tipButtonRef.current, walletRef.current);
-    return jar.sendTip(amount);
+    return result;
   };
 
   const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
