@@ -63,7 +63,7 @@ never appear in the public "LATEST TIPS" wall.
   get-starknet-discovery next=6.0.2, wallet-standard 6.0.2, types-js 0.10.3 — all
   pins hold.
 
-## 5. Phase 1 — wallet upgrade + capability-aware connection (buildable now)
+## 5. Phase 1 — wallet upgrade + capability-aware connection ✅ done 2026-07-24
 
 1. Install the pinned versions above (replaces `get-starknet@4`; bumps
    `starknet` to 10.4.0).
@@ -154,7 +154,16 @@ transfer is exercised on mainnet.
   whether it exposes shielded balances (gates optional Phase 3).
 - **Xverse** dapp-facing Wallet API status; **fee/paymaster** UX design.
 - get-starknet **v6 import surface** vs the current v4 usage in
-  `useTipJar.ts` (breaking migration).
+  `useTipJar.ts` (breaking migration). ✅ resolved in Phase 1: `createStore`
+  from `@starknet-io/get-starknet-discovery`; `WalletWithStarknetFeatures` from
+  `@starknet-io/get-starknet-wallet-standard/features`;
+  `WalletAccountV6`/`strk20Balances`/`strk20InvokeTransaction` from `starknet`.
+- Build warning (non-fatal): a get-starknet v6 transitive dep
+  (`@module-federation/sdk`) uses direct `eval`; surfaces as a bundler advisory,
+  not an error. Track upstream; no action needed.
+- Phase 1 auto-connects when exactly one wallet is discovered and shows a picker
+  for multiple; a wallet that registers late may need a re-click of CONNECT
+  (get-starknet `store.subscribe` polish is a possible follow-up).
 
 ## 11. Links
 

@@ -41,6 +41,23 @@ export default function App() {
           </button>
         </header>
 
+        {jar.wallets.length > 0 && !jar.address && (
+          <div className="wallet-picker">
+            <span className="wallet-picker__label">▸ CHOOSE A WALLET</span>
+            <div className="wallet-picker__list">
+              {jar.wallets.map((w) => (
+                <button
+                  key={w.name}
+                  className="btn btn--connect"
+                  onClick={() => jar.selectWallet(w)}
+                >
+                  {w.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <p className="marquee" aria-hidden>
           ★ INSERT COIN ★ EVERY TIP IS PUBLIC ★ WHO · HOW MUCH · WHEN ★ VISIBLE
           TO ANYONE ★
@@ -65,6 +82,17 @@ export default function App() {
 
         {!jar.address && (
           <p className="hint">▲ CONNECT A WALLET TO PLAY</p>
+        )}
+        {jar.address && jar.privacySupported && (
+          <p className="hint hint--ok">
+            🔒 PRIVATE TIPPING AVAILABLE ON THIS WALLET
+          </p>
+        )}
+        {jar.address && !jar.privacySupported && (
+          <p className="hint">
+            🔓 NO STRK20 SUPPORT ON THIS WALLET — PUBLIC TIPS ONLY (USE READY FOR
+            PRIVATE)
+          </p>
         )}
         {jar.error && <p className="error">✖ {jar.error}</p>}
 

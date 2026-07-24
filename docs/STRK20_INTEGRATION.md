@@ -83,6 +83,18 @@ hidden-vs-visible table. Phases:
 
 ### Log (filled as phases complete)
 
-- [ ] Phase 1 — wallet upgrade + capability-aware connection
+- [x] **Phase 1 — wallet upgrade + capability-aware connection** ✅ 2026-07-24
+  - Upgraded `starknet@10.0.2 → 10.4.0`; replaced `get-starknet@4` with
+    `@starknet-io/get-starknet-discovery@6.0.2` +
+    `@starknet-io/get-starknet-wallet-standard@6.0.2` + `@starknet-io/types-js@0.10.3`.
+  - Migrated `app/src/hooks/useTipJar.ts` to get-starknet v6 discovery
+    (`createStore().getWallets()`) + `WalletAccountV6.connect(provider, wallet)`.
+    The public tip path is unchanged — `WalletAccountV6` inherits `execute`.
+  - Added a runtime **capability probe** (`wa.strk20Balances([])` in try/catch →
+    `privacySupported`) and graceful degradation: a wallet picker for multiple
+    wallets, and a status line (private available vs. public-only) in `App.tsx`.
+  - Verified headlessly: `npm run build` (typecheck) passes, `npm test` 6/6.
+    (Non-fatal: a get-starknet transitive dep triggers a bundler `eval` advisory.)
+  - **Manual check pending** — see below.
 - [ ] Phase 2 — "Tip privately" private transfer
 - [ ] Evidence: private tip result — what an observer sees vs. the creator's wallet

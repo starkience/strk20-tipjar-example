@@ -1,19 +1,16 @@
 // useTipJar — all of the app's Starknet wiring in one hook.
 //
-// Responsibilities:
-//   - connectWallet: connect a browser wallet via get-starknet + starknet.js
-//   - refresh:       read totals (get_total) and rebuild the tip wall from
-//                    Tipped events over RPC
-//   - sendTip:       submit the approve + tip multicall, wait for confirmation,
-//                    then refresh
-//
-// This is the entire public-tip integration surface. In Part 2, the private
-// tipping path is added ALONGSIDE this (a separate action that calls the
-// STRK20 Wallet API), leaving `sendTip` — the public path — untouched.
+// Part 2 (STRK20) migrated wallet discovery + connection to get-starknet v6 and
+// starknet.js WalletAccountV6. WalletAccountV6 keeps the normal account API
+// (`execute`, `address`), so the PUBLIC tip path (`sendTip`) is unchanged — it
+// ALSO exposes STRK20 actions (`strk20Balances`, `strk20InvokeTransaction`) that
+// the private path (Phase 2) uses. `privacySupported` is a runtime capability
+// probe so the UI can degrade gracefully on wallets without STRK20 support.
 
 import { useCallback, useEffect, useState } from "react";
-import { RpcProvider, WalletAccount } from "starknet";
-import { connect } from "get-starknet";
+import { RpcProvider, WalletAccountV6 } from "starknet";
+import { createStore } from "@starknet-io/get-starknet-discovery";
+import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
 import { CONFIG } from "../config";
 import {
   buildTipCalls,
@@ -24,28 +21,58 @@ import {
 } from "../lib/tipjar";
 
 const provider = new RpcProvider({ nodeUrl: CONFIG.rpcUrl });
+// Created once so get-starknet starts listening for wallet-standard wallets
+// immediately (extensions can register after the page loads).
+const walletStore = createStore();
 
 export function useTipJar() {
-  const [account, setAccount] = useState<WalletAccount | null>(null);
+  const [account, setAccount] = useState<WalletAccountV6 | null>(null);
   const [address, setAddress] = useState<string | null>(null);
+  const [wallets, setWallets] = useState<WalletWithStarknetFeatures[]>([]);
+  const [privacySupported, setPrivacySupported] = useState(false);
   const [tips, setTips] = useState<TipEvent[]>([]);
   const [total, setTotal] = useState<bigint>(0n);
   const [count, setCount] = useState<number>(0);
   const [txPending, setTxPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const connectWallet = useCallback(async () => {
+  // Connect to a specific discovered wallet, then probe STRK20 capability.
+  const selectWallet = useCallback(async (wallet: WalletWithStarknetFeatures) => {
     setError(null);
     try {
-      const swo = await connect({ modalMode: "alwaysAsk" });
-      if (!swo) return;
-      const wa = await WalletAccount.connect(provider, swo);
+      const wa = await WalletAccountV6.connect(provider, wallet);
       setAccount(wa);
       setAddress(wa.address);
+      setWallets([]);
+      // Capability probe: a read-only STRK20 call. It resolves on
+      // privacy-enabled wallets (e.g. Ready) and throws on wallets without
+      // STRK20 support — the dapp never sees a viewing key either way.
+      try {
+        await wa.strk20Balances([]);
+        setPrivacySupported(true);
+      } catch {
+        setPrivacySupported(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
+
+  // Open the picker: discover wallets via get-starknet v6. Auto-connect when
+  // there is exactly one; otherwise expose the list for the UI to choose from.
+  const connectWallet = useCallback(async () => {
+    setError(null);
+    const found = walletStore.getWallets();
+    if (found.length === 0) {
+      setError("No Starknet wallet found. Install the Ready extension for private tips.");
+      return;
+    }
+    if (found.length === 1) {
+      await selectWallet(found[0]);
+    } else {
+      setWallets(found);
+    }
+  }, [selectWallet]);
 
   const refresh = useCallback(async () => {
     if (!CONFIG.tipJarAddress) return; // not deployed yet
@@ -72,6 +99,8 @@ export function useTipJar() {
     }
   }, []);
 
+  // PUBLIC tip: unchanged. approve + tip multicall through the normal account
+  // API (WalletAccountV6 inherits `execute`), then wait and refresh.
   const sendTip = useCallback(
     async (amountStrk: string) => {
       if (!account) throw new Error("connect a wallet first");
@@ -102,5 +131,18 @@ export function useTipJar() {
     refresh();
   }, [refresh]);
 
-  return { address, connectWallet, sendTip, tips, total, count, refresh, txPending, error };
+  return {
+    address,
+    wallets,
+    connectWallet,
+    selectWallet,
+    privacySupported,
+    sendTip,
+    tips,
+    total,
+    count,
+    refresh,
+    txPending,
+    error,
+  };
 }
