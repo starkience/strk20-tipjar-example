@@ -72,9 +72,10 @@ never appear in the public "LATEST TIPS" wall.
    WalletAccount guide for the exact current API before writing code — do not
    guess method names:**
    <https://starknet-js.com/docs/next/guides/account/walletAccount/#with-get-starknet-v6>
-3. **Capability detection:** probe a read-only STRK20 call
-   (`strk20Balances([])` in try/catch) or check `wallet_supportedSpecs`; expose
-   the private action only when supported.
+3. **Capability detection (no balance access):** check the wallet's advertised
+   Wallet-API versions via `walletV6.supportedWalletApi(wallet)` and treat
+   >= 0.10 as STRK20-capable. Deliberately **not** a `strk20Balances` probe —
+   the dapp should never touch a user's balances/keys just to feature-detect.
 4. **Graceful degradation:** with a non-privacy wallet (e.g. Braavos), the
    public tip keeps working and "Tip privately" is hidden/disabled with a
    "needs a privacy-enabled wallet (Ready)" note.

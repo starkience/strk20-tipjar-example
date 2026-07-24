@@ -90,9 +90,14 @@ hidden-vs-visible table. Phases:
   - Migrated `app/src/hooks/useTipJar.ts` to get-starknet v6 discovery
     (`createStore().getWallets()`) + `WalletAccountV6.connect(provider, wallet)`.
     The public tip path is unchanged — `WalletAccountV6` inherits `execute`.
-  - Added a runtime **capability probe** (`wa.strk20Balances([])` in try/catch →
-    `privacySupported`) and graceful degradation: a wallet picker for multiple
-    wallets, and a status line (private available vs. public-only) in `App.tsx`.
+  - Added runtime **capability detection** and graceful degradation: a wallet
+    picker for multiple wallets, and a status line (private available vs.
+    public-only) in `App.tsx`.
+  - **Design note (privacy):** capability detection uses
+    `walletV6.supportedWalletApi(wallet)` (a "which Wallet-API versions do you
+    support?" query, ≥ 0.10 = STRK20-capable) — **not** a `strk20Balances`
+    probe. A dapp should never touch a user's balances or keys just to
+    feature-detect; the wallet-API version check reads no private data.
   - Verified headlessly: `npm run build` (typecheck) passes, `npm test` 6/6.
     (Non-fatal: a get-starknet transitive dep triggers a bundler `eval` advisory.)
   - **Manual check pending** — see below.

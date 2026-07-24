@@ -3,12 +3,12 @@
 // Part 2 (STRK20) migrated wallet discovery + connection to get-starknet v6 and
 // starknet.js WalletAccountV6. WalletAccountV6 keeps the normal account API
 // (`execute`, `address`), so the PUBLIC tip path (`sendTip`) is unchanged — it
-// ALSO exposes STRK20 actions (`strk20Balances`, `strk20InvokeTransaction`) that
-// the private path (Phase 2) uses. `privacySupported` is a runtime capability
-// probe so the UI can degrade gracefully on wallets without STRK20 support.
+// ALSO exposes STRK20 actions (`strk20InvokeTransaction`) that the private path
+// (Phase 2) uses. `privacySupported` is a runtime capability check so the UI can
+// degrade gracefully on wallets without STRK20 support.
 
 import { useCallback, useEffect, useState } from "react";
-import { RpcProvider, WalletAccountV6 } from "starknet";
+import { RpcProvider, WalletAccountV6, walletV6 } from "starknet";
 import { createStore } from "@starknet-io/get-starknet-discovery";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
 import { CONFIG } from "../config";
@@ -24,6 +24,24 @@ const provider = new RpcProvider({ nodeUrl: CONFIG.rpcUrl });
 // Created once so get-starknet starts listening for wallet-standard wallets
 // immediately (extensions can register after the page loads).
 const walletStore = createStore();
+
+// Capability check that NEVER touches balances or keys: ask the wallet which
+// Wallet-API versions it supports. STRK20 (the Privacy Wallet API) ships in
+// v0.10.3, so a wallet advertising >= 0.10 supports the private actions. This
+// is a plain "what do you support?" query — the dapp reads no private data.
+async function walletSupportsStrk20(
+  wallet: WalletWithStarknetFeatures,
+): Promise<boolean> {
+  try {
+    const versions = await walletV6.supportedWalletApi(wallet);
+    return versions.some((v) => {
+      const [major, minor] = v.split(".").map((n) => parseInt(n, 10));
+      return major > 0 || (major === 0 && minor >= 10);
+    });
+  } catch {
+    return false;
+  }
+}
 
 export function useTipJar() {
   const [account, setAccount] = useState<WalletAccountV6 | null>(null);
@@ -44,15 +62,9 @@ export function useTipJar() {
       setAccount(wa);
       setAddress(wa.address);
       setWallets([]);
-      // Capability probe: a read-only STRK20 call. It resolves on
-      // privacy-enabled wallets (e.g. Ready) and throws on wallets without
-      // STRK20 support — the dapp never sees a viewing key either way.
-      try {
-        await wa.strk20Balances([]);
-        setPrivacySupported(true);
-      } catch {
-        setPrivacySupported(false);
-      }
+      // Detect STRK20 support via the wallet's advertised Wallet-API versions —
+      // no balance query, no viewing key, no private data read.
+      setPrivacySupported(await walletSupportsStrk20(wallet));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
