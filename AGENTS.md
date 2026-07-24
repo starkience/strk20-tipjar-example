@@ -25,7 +25,9 @@ Clarity and comments matter more than cleverness.
 | --- | --- |
 | `contracts/src/tipjar.cairo` | The TipJar contract (public tipping). No custody, no admin. |
 | `contracts/src/mock_erc20.cairo` | Test-only ERC-20 for unit tests. Not deployed to mainnet. |
-| `contracts/tests/` | `snforge` tests. |
+| `contracts/src/avnu_swap_anonymizer.cairo` | **Advanced/reference.** Private swap-tip helper (`privacy_invoke`). Moves funds — **not audited, do not deploy to mainnet.** See [`docs/ANONYMIZER.md`](docs/ANONYMIZER.md). |
+| `contracts/src/mock_avnu_exchange.cairo` | Test-only mock AVNU exchange. |
+| `contracts/tests/` | `snforge` tests (10). |
 | `app/src/config.ts` | **All** on-chain addresses and network config. Single source of truth. |
 | `app/src/hooks/useTipJar.ts` | All Starknet wiring: connect, read totals/events, send the tip multicall. |
 | `app/src/lib/tipjar.ts` | Pure helpers (calldata, STRK parsing, event decoding). Unit-tested. |

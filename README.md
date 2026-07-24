@@ -20,6 +20,7 @@ plugs into an existing app**, this is meant to be read top to bottom.
 | --- | --- | --- |
 | **Part 1 — Public tip jar** | Cairo contract + React frontend, deployed on mainnet | ✅ Done (this codebase) |
 | **Part 2 — STRK20 privacy** | A "Tip privately" path via the STRK20 Wallet API, added **with the [STRK20 agent skill](https://strk20-by-example.org/agent-skill)** | ✅ Built — live mainnet verification pending. Full step-by-step log: [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md) |
+| **Advanced — Private swap-tips** | Tip in one token, the creator privately receives another (e.g. USDC) via an AVNU anonymizer contract | 🧪 Reference — built + unit-tested against a mock, **not audited, not deployed**. See [`docs/ANONYMIZER.md`](docs/ANONYMIZER.md) |
 
 The point of the repo is Part 2. Part 1 exists so there is a real, working app
 to add privacy *to* — and so the "everything is public" problem is concrete.
@@ -62,7 +63,8 @@ strk20-tipjar-example/
 ├── contracts/                    ← Cairo (Scarb + Starknet Foundry)
 │   ├── src/tipjar.cairo          ← the TipJar contract (public tipping)
 │   ├── src/mock_erc20.cairo      ← test-only ERC-20 used in unit tests
-│   ├── tests/                    ← snforge tests (7 passing)
+│   ├── src/avnu_swap_anonymizer.cairo  ← ADVANCED: private swap-tip helper (reference, not audited)
+│   ├── tests/                    ← snforge tests (10 passing)
 │   └── README.md                 ← contract details + deploy commands
 ├── app/                          ← React + TypeScript + Vite frontend
 │   ├── src/config.ts             ← all on-chain addresses live here
@@ -73,7 +75,8 @@ strk20-tipjar-example/
 └── docs/
     ├── ARCHITECTURE.md           ← how the pieces fit; what STRK20 changes
     ├── DEPLOYMENT.md             ← the live mainnet deployment (addresses, tx hashes, how to redeploy)
-    └── STRK20_INTEGRATION.md     ← Part 2: step-by-step log of adding STRK20 (the main event)
+    ├── STRK20_INTEGRATION.md     ← Part 2: step-by-step log of adding STRK20 (the main event)
+    └── ANONYMIZER.md             ← Advanced: private swap-tips via an anonymizer contract (reference, not audited)
 ```
 
 **Where to look first, by question:**

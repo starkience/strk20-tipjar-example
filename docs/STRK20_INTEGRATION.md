@@ -125,6 +125,16 @@ hidden-vs-visible table. Phases:
 - [ ] Evidence: private tip result — what an observer sees vs. the creator's wallet
       (captured during the manual mainnet check)
 
+## Going further — private swap-tips (anonymizer contract)
+
+A plain private transfer needs no Cairo. But "tip in one token, creator receives
+another" (a private *swap*) crosses into **private DeFi**, which needs an
+**anonymizer contract**. That advanced, reference-only module lives in
+`contracts/src/avnu_swap_anonymizer.cairo` with its own writeup:
+[`ANONYMIZER.md`](ANONYMIZER.md). It's built and unit-tested against a mock AVNU,
+**not audited, and not deployed** — the boundary where "app code only" ends and a
+team-owned, audited contract begins.
+
 ## Using the skill (recap for readers)
 
 This whole Part 2 was produced by the **STRK20 agent skill** following its

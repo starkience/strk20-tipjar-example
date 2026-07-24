@@ -33,8 +33,16 @@ Design choices worth noting (all in service of "simple to read"):
 
 ```bash
 scarb build
-snforge test          # 7 passing (3 mock_erc20 + 4 tipjar)
+snforge test          # 10 passing (3 mock_erc20 + 4 tipjar + 3 anonymizer)
 ```
+
+## Advanced: `src/avnu_swap_anonymizer.cairo`
+
+A **reference** private-DeFi helper (private swap-tips: tip one token, creator
+privately receives another). It moves funds and is **not audited — do not deploy
+to mainnet.** Built and unit-tested against `src/mock_avnu_exchange.cairo`. Full
+design, AVNU mapping, and the production checklist are in
+[`../docs/ANONYMIZER.md`](../docs/ANONYMIZER.md).
 
 ## Deploy
 
