@@ -19,7 +19,7 @@ export function TipWall(props: { tips: TipEvent[]; total: bigint; count: number 
         </div>
       </div>
 
-      <h2 className="tip-wall__title">◆ HIGH SCORES ◆</h2>
+      <h2 className="tip-wall__title">◆ LATEST TIPS ◆</h2>
       <ul className="tip-wall__list">
         {props.tips.map((t) => (
           <li key={t.txHash} className="tip-wall__row">
