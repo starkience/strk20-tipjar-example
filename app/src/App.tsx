@@ -20,6 +20,7 @@ export default function App() {
   // from the single tip button.
   const handleTip = async (amount: string) => {
     const result = await jar.sendTip(amount);
+    if (!result) return result; // guarded no-op (already in flight) — no coin
     playCoinSound();
     launchCoinFlight(tipButtonRef.current, walletRef.current);
     return result;
@@ -27,6 +28,7 @@ export default function App() {
 
   const handlePrivateTip = async (amount: string) => {
     const result = await jar.sendPrivateTip(amount);
+    if (!result) return result;
     playCoinSound();
     launchCoinFlight(tipButtonRef.current, walletRef.current);
     return result;

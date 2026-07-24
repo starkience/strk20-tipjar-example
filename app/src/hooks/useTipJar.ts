@@ -7,7 +7,7 @@
 // (Phase 2) uses. `privacySupported` is a runtime capability check so the UI can
 // degrade gracefully on wallets without STRK20 support.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RpcProvider, WalletAccountV6, walletV6 } from "starknet";
 import { createStore } from "@starknet-io/get-starknet-discovery";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
@@ -54,6 +54,10 @@ export function useTipJar() {
   const [count, setCount] = useState<number>(0);
   const [txPending, setTxPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Synchronous re-entrancy lock: the `txPending` state disables the button, but
+  // React state lags a render, so a fast double-click can slip a second tx
+  // through. A ref updates immediately and blocks that. Prevents double-shields.
+  const submittingRef = useRef(false);
 
   // Connect to a specific discovered wallet, then probe STRK20 capability.
   const selectWallet = useCallback(async (wallet: WalletWithStarknetFeatures) => {
@@ -117,6 +121,8 @@ export function useTipJar() {
   const sendTip = useCallback(
     async (amountStrk: string) => {
       if (!account) throw new Error("connect a wallet first");
+      if (submittingRef.current) return undefined; // a tip is already in flight
+      submittingRef.current = true;
       setError(null);
       setTxPending(true);
       try {
@@ -134,6 +140,7 @@ export function useTipJar() {
         setError(e instanceof Error ? e.message : String(e));
         throw e;
       } finally {
+        submittingRef.current = false;
         setTxPending(false);
       }
     },
@@ -156,6 +163,8 @@ export function useTipJar() {
       if (!privacySupported) {
         throw new Error("this wallet does not support STRK20 private tips");
       }
+      if (submittingRef.current) return undefined; // a tip is already in flight
+      submittingRef.current = true;
       setError(null);
       setTxPending(true);
       try {
@@ -180,6 +189,7 @@ export function useTipJar() {
         setError(e instanceof Error ? e.message : String(e));
         throw e;
       } finally {
+        submittingRef.current = false;
         setTxPending(false);
       }
     },
