@@ -14,7 +14,8 @@ pub trait IMockAvnuControl<T> {
 pub mod MockAvnuExchange {
     use starknet::{ContractAddress, get_caller_address, get_contract_address};
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
-    use crate::avnu_swap_anonymizer::{IAvnuExchange, Route};
+    use crate::avnu_models::Route;
+    use crate::avnu_swap_anonymizer::IAvnuExchange;
     use crate::mock_erc20::{IMockERC20Dispatcher, IMockERC20DispatcherTrait};
     use super::IMockAvnuControl;
 

@@ -16,29 +16,19 @@
 //   pool to pull the output → return Span<OpenNoteDeposit>.
 
 use starknet::ContractAddress;
+// AVNU v2's real routing type — verified against avnu-contracts-v2 (see avnu_models).
+use crate::avnu_models::Route;
 
 /// Instruction telling the privacy pool which open note to credit, with which
-/// token and amount. Defined locally so this reference has no dependency on the
-/// privacy monorepo — the field order/types MUST match the deployed pool's
-/// `privacy::objects::OpenNoteDeposit` ABI (verify during integration).
-#[derive(Copy, Drop, Serde)]
+/// token and amount. Layout verified to match the deployed pool's
+/// `privacy::objects::OpenNoteDeposit` (starkware-libs/starknet-privacy):
+/// `note_id: felt252, token: ContractAddress, amount: u128`. Defined locally so
+/// this reference needs no monorepo dependency.
+#[derive(Copy, Drop, Serde, PartialEq, Debug)]
 pub struct OpenNoteDeposit {
     pub note_id: felt252,
     pub token: ContractAddress,
     pub amount: u128,
-}
-
-/// A single AVNU route hop. Trimmed for this reference: the real AVNU `Route`
-/// and `multi_route_swap` ABI are richer, and routes are computed off-chain by
-/// AVNU's API and passed as calldata. Verify against AVNU's deployed contract
-/// during audit/integration.
-#[derive(Drop, Serde)]
-pub struct Route {
-    pub sell_token: ContractAddress,
-    pub buy_token: ContractAddress,
-    pub exchange_address: ContractAddress,
-    pub percent: u128,
-    pub additional_swap_params: Array<felt252>,
 }
 
 /// The subset of ERC-20 this helper calls. Real STRK/USDC support these
@@ -49,9 +39,10 @@ pub trait IERC20<T> {
     fn balance_of(self: @T, account: ContractAddress) -> u256;
 }
 
-/// The subset of AVNU's Exchange this helper calls. Signature mirrors AVNU's
-/// `multi_route_swap`; confirm exact types against AVNU's deployed ABI before
-/// any real integration.
+/// The subset of AVNU's Exchange this helper calls. The `multi_route_swap`
+/// signature (params, order, types) and the `Route` type are verified against
+/// avnu-contracts-v2 — this interface is ABI-compatible with AVNU's real
+/// Exchange. The deployed Exchange address is a per-network integration input.
 #[starknet::interface]
 pub trait IAvnuExchange<T> {
     fn multi_route_swap(
@@ -106,6 +97,12 @@ pub mod AvnuSwapAnonymizer {
     #[storage]
     struct Storage {}
 
+    // Access control: intentionally PERMISSIONLESS (no `caller == pool` assert),
+    // matching the stateless Ekubo/Vesu references. Safe because this helper
+    // holds no funds between transactions — anything it holds mid-call is pulled
+    // by the pool in the same transaction, and a direct caller would only ever
+    // swap their own funds. A STATEFUL helper (e.g. an escrow) MUST instead
+    // assert the caller is the privacy pool.
     #[abi(embed_v0)]
     impl AvnuSwapAnonymizerImpl of IAvnuSwapAnonymizer<ContractState> {
         fn privacy_invoke(

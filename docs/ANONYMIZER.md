@@ -64,9 +64,24 @@ Adapted from the public **Ekubo swap-anonymizer** reference
 `multi_route_swap(..., beneficiary)`, so the adapter approves instead of
 transferring and reads the delta on itself.
 
-`OpenNoteDeposit` is defined locally (matching `privacy::objects::OpenNoteDeposit`)
-so this reference has no monorepo dependency — its field order/types **must**
-match the deployed pool's ABI, which is an integration/audit checkpoint.
+`OpenNoteDeposit` is defined locally so this reference has no monorepo
+dependency; its layout is **verified to match** the pool's real
+`privacy::objects::OpenNoteDeposit` (`note_id: felt252, token, amount: u128`).
+
+## ABI verification status
+
+Checked against source so the reference is as deploy-ready as it can be
+pre-audit:
+
+| Item | Status | Source |
+|---|---|---|
+| `OpenNoteDeposit` layout | ✅ Exact match | `starkware-libs/starknet-privacy` `packages/privacy/src/objects.cairo` |
+| `privacy_invoke` invoke convention | ✅ Confirmed (`InvokeInput { contract_address, calldata }`) | `.../src/actions.cairo` |
+| Access control (permissionless OK for a stateless helper) | ✅ Confirmed vs. Ekubo/Vesu references | monorepo |
+| AVNU `multi_route_swap` signature | ✅ Exact match (params, order, types) | `avnu-labs/avnu-contracts-v2` `src/exchange.cairo` |
+| AVNU `Route` type | ✅ Vendored verbatim (nested `RouteSwap` + custom `Serde`) | `.../src/models.cairo` → `contracts/src/avnu_models.cairo` |
+| AVNU deployed Exchange address | ⛳ Per-network integration input (not pinned) | — |
+| Real STRK20 pool + testnet integration | ⛳ Gated (see below) | — |
 
 ## What's tested vs. not
 
@@ -79,9 +94,10 @@ match the deployed pool's ABI, which is an integration/audit checkpoint.
 
 **NOT tested here (integration + audit work, gated on mainnet/testnet):**
 - The real STRK20 pool calling `privacy_invoke` via `INVOKE_SELECTOR` and
-  crediting the open note.
-- AVNU's **actual** `multi_route_swap`/`Route` ABI (this uses a trimmed shape;
-  real routes are computed off-chain by AVNU's API).
+  crediting the open note (the ABIs are verified above, but the live handshake
+  is not exercised).
+- Real AVNU **routing** — the ABI is now correct, but routes are computed
+  off-chain by AVNU's API and the deployed Exchange address must be supplied.
 - Atomic rollback within a real pool transaction.
 - Slippage/fee behavior against live liquidity.
 
@@ -123,8 +139,10 @@ DEX). Don't imply otherwise in UI copy.
 ## Taking it to production (the owner's checklist)
 
 1. **Audit** the contract — owner, budget, timing lined up before anything else.
-2. Replace the trimmed `Route`/`IAvnuExchange` with AVNU's **verified deployed
-   ABI**; confirm `OpenNoteDeposit` matches the pool's ABI.
+   (This is now the primary blocker; the ABIs are verified above.)
+2. Supply the **deployed AVNU Exchange address** (per network) and integrate
+   AVNU's off-chain routing API to build the `routes` calldata. Optionally
+   depend on AVNU's package instead of the vendored `avnu_models`.
 3. Develop/test against **testnet** via the SDK-direct path (the team controls
    the account there); production user flows still go through the Wallet API.
 4. Test atomicity: success → output credited as a private note; revert → clean

@@ -3,8 +3,9 @@ use snforge_std::{
     stop_cheat_caller_address,
 };
 use starknet::ContractAddress;
+use tipjar::avnu_models::{DirectSwap, Route, RouteSwap};
 use tipjar::avnu_swap_anonymizer::{
-    IAvnuSwapAnonymizerDispatcher, IAvnuSwapAnonymizerDispatcherTrait, Route,
+    IAvnuSwapAnonymizerDispatcher, IAvnuSwapAnonymizerDispatcherTrait,
 };
 use tipjar::mock_erc20::{IMockERC20Dispatcher, IMockERC20DispatcherTrait};
 
@@ -42,7 +43,21 @@ fn test_privacy_invoke_swaps_and_credits_open_note() {
     // Simulate the pool withdrawing 100 sell tokens to the anonymizer.
     sell.mint(anon.contract_address, 100_u256);
 
-    let routes: Array<Route> = array![];
+    // A real AVNU v2 route shape (the mock ignores it, but this exercises the
+    // vendored Route/RouteSwap/DirectSwap types and their custom Serde).
+    let routes: Array<Route> = array![
+        Route {
+            sell_token: sell.contract_address,
+            buy_token: buy.contract_address,
+            swap: RouteSwap::Direct(
+                DirectSwap {
+                    exchange_address: exchange,
+                    percent: 1000000000000_u128,
+                    additional_swap_params: array![],
+                },
+            ),
+        },
+    ];
     start_cheat_caller_address(anon.contract_address, pool());
     let deposits = anon
         .privacy_invoke(
