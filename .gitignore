@@ -5,3 +5,8 @@ dist/
 
 # Internal agent/workflow scratch — not part of the example
 .superpowers/
+
+# Installed agent-skill machinery — reproduced via `npx skills add ...`
+.agents/
+.claude/
+skills-lock.json

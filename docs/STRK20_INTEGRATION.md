@@ -1,78 +1,88 @@
 # Adding STRK20 privacy — step by step (Part 2)
 
-> **Status: 🚧 not started yet.** This document is the plan and will become the
-> blow-by-blow log as the integration is built. The goal is that a developer can
-> follow it and understand *exactly* how STRK20 was added to an existing app —
-> every command, decision, and gotcha.
+> **Status: 🚧 in progress.** This is the running log of how STRK20 privacy is
+> added to the app, built **with the STRK20 agent skill**. It records the actual
+> commands, decisions, and gotchas so a developer can reproduce the process.
 
 ## Goal
 
-Add a **"Tip privately"** action to the tip jar so a tipper can support the
-creator **without any public link** between them — while leaving the existing
-public tip path untouched.
+Add a **"Tip privately"** action so a tipper can support the creator **without
+any public link** between them — leaving the existing public tip path untouched.
 
-## Approach (and why)
+## The tool: the STRK20 agent skill
 
-Route: the **Starknet Wallet API** (via starknet.js), the standard path for
-private dapps. The app asks the user's privacy-enabled wallet to perform a
-**pool-internal private transfer** to the creator's registered wallet; the
-wallet handles viewing keys, notes, proofs, and submission.
+The integration is driven by the official **STRK20 agent skill**, an
+"ask → plan → execute" skill that inspects the repo, interviews the developer,
+picks an integration route, writes a repo-specific plan, and executes it phase
+by phase. Crucially, it works on **app code only — it never writes Cairo
+contracts** (our private path needs none).
 
-Why this route:
-- A private tip is conceptually just "pay the creator privately" — a **private
-  transfer to a wallet**, which is a pure Wallet-API primitive. **No custom
-  Cairo / anonymizer contract is required** (those are only needed when a
-  contract must custody or transform value privately, e.g. private DeFi).
-- It keeps the example genuinely simple, which is the whole point.
-
-Reference: <https://strk20-by-example.org/starknet-wallet-api/overview>
-(agent-readable: <https://strk20-by-example.org/llms.txt>).
-
-## Invariants (must hold when done)
-
-- The private path **does not call the `TipJar` contract** and **emits no
-  `Tipped` event** → private tips never appear in the "LATEST TIPS" wall.
-- The public `sendTip` path keeps working unchanged.
-- **No key material in the repo** — viewing/private keys and secrets are handled
-  wallet-side or via env placeholders only.
-- Testnet first; any mainnet-affecting change is explicit.
-
-## What's hidden vs. visible (be honest in the UI)
-
-- **Hidden:** the tipper↔creator link and the private transfer amount.
-- **Visible:** the pool's public edges (a shield deposit or withdraw are public
-  ERC-20 legs) and timing.
-
-## Plan of record
-
-The integration will be built with the **STRK20 agent skill**, which scans the
-repo, interviews for the specifics, writes a versioned plan, and executes it:
+### Install
 
 ```bash
 npx skills add starkience/strk20-agent-skills
-# then, in the repo:  "plan STRK20 privacy for this app"
 ```
 
-<https://strk20-by-example.org/agent-skill>
+This installs a universal skill to `.agents/skills/strk20-privacy-integration/`
+(with a symlink into `.claude/skills/` for Claude Code), containing `SKILL.md`
+plus references (`concepts.md`, `wallet-api-route.md`, `links.md`,
+`plan-template.md`, `execute.md`, …). The installer targets 30+ agents and
+reports third-party security assessments before installing.
 
-### Prerequisites (to fill in)
-- [ ] Choose the privacy-enabled wallet to target (deferred — decide at build time).
-- [ ] Creator registers in the STRK20 pool (one-time, wallet-side).
+Source & docs: <https://strk20-by-example.org/agent-skill> ·
+<https://github.com/starkience/strk20-agent-skills>
 
-### Steps (to be logged as we go)
-1. [ ] Install the agent skill and run its planning flow; capture the interview Q&A.
-2. [ ] Review the generated `STRK20_INTEGRATION_PLAN.md` (route, files, hidden-vs-visible).
-3. [ ] Add the "Tip privately" action (capability-detect the wallet; shield if needed; private transfer to the creator).
-4. [ ] Verify: public path unchanged; private tip does not appear in the wall; `npm test`/`npm run build` pass.
-5. [ ] Send a real private tip; record the evidence (what an observer can and cannot see).
+> Note: `.agents/` and `.claude/` are the installed-skill machinery, not part of
+> the example itself — they're git-ignored so the repo stays focused on the app.
 
-### Evidence (to fill in)
-- Wallet used: _tbd_
-- Generated plan: _tbd_
-- Private tip result / what's visible on-chain vs. in the creator's wallet: _tbd_
+## Step 1 — Scan (what the skill detected)
 
----
+- **Type:** normal dapp; users connect their own wallet. No backend; no DeFi
+  contracts (the `TipJar` contract just forwards STRK).
+- **Frontend:** Vite + React 19 + TS. Wallet connect at
+  `app/src/hooks/useTipJar.ts:24`; tx send at `useTipJar.ts:62`
+  (`account.execute`); addresses in `app/src/config.ts`.
+- **Version gap:** repo is on `starknet@10.0.2` / `get-starknet@4.0.0`; the
+  Wallet-API route needs `starknet@10.4.0` + get-starknet v6.0.2 + types-js
+  0.10.3.
 
-*As each step is completed, replace its checkbox with the actual commands run,
-decisions made, and any gotchas — the same way [`DEPLOYMENT.md`](DEPLOYMENT.md)
-records Part 1.*
+## Step 2 — Interview (developer answers)
+
+| Question | Answer |
+|---|---|
+| Privacy goal | **Private transfer to the creator** — hide the tipper↔creator link and the amount; public tips unchanged. |
+| Network | **Mainnet first** (the public jar is already on mainnet; each real send gets explicit confirmation). |
+| Wallet | **Ready extension** (the STRK20-capable wallet; Braavos is not supported). |
+
+## Step 3 — Route
+
+**Privacy Wallet API via starknet.js** — the standard route for a normal dapp.
+The wallet performs the private transfer; the dapp never touches viewing keys.
+**No anonymizer contract** (a private transfer to a wallet is a pure Wallet-API
+primitive). Reference: <https://strk20-by-example.org/starknet-wallet-api/overview>.
+
+## Step 4 — Plan
+
+The skill wrote **[`STRK20_INTEGRATION_PLAN.md`](../STRK20_INTEGRATION_PLAN.md)**
+to the repo root — repo-specific, versioned, phased, with an honest
+hidden-vs-visible table. Phases:
+
+1. **Phase 1** — upgrade to get-starknet v6 + `starknet@10.4.0`; capability-aware
+   connection with graceful degradation for non-privacy wallets.
+2. **Phase 2** — the "Tip privately" action: a private transfer to the creator,
+   kept separate from the public path; never emits a `Tipped` event, so it never
+   shows in "LATEST TIPS".
+3. **Phase 3** — (optional/tracked) creator-facing private total; sub-accounts
+   when they become builder-facing.
+
+## Step 5 — Execute
+
+> ⏳ **Awaiting plan approval.** Per the skill, code changes begin only after the
+> developer approves `STRK20_INTEGRATION_PLAN.md`. Execution runs one phase at a
+> time, each ending with a manual wallet check.
+
+### Log (filled as phases complete)
+
+- [ ] Phase 1 — wallet upgrade + capability-aware connection
+- [ ] Phase 2 — "Tip privately" private transfer
+- [ ] Evidence: private tip result — what an observer sees vs. the creator's wallet
