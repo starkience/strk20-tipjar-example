@@ -7,7 +7,8 @@ import { ModeToggle } from "./components/ModeToggle";
 import { Stepper } from "./components/Stepper";
 import { TipForm } from "./components/TipForm";
 import { TipWall } from "./components/TipWall";
-import { TxLog, type LogEntry } from "./components/TxLog";
+import { TxLog } from "./components/TxLog";
+import { addSessionTx, mergeLog, type LogEntry } from "./lib/txlog";
 import { COIN_SVG } from "./lib/pixelArt";
 import { formatDisplay } from "./lib/tipjar";
 import type { Token } from "./config";
@@ -22,12 +23,14 @@ export default function App() {
   const jar = useTipJar({
     onTx: (kind, hash, detail) =>
       setSession((s) =>
-        s.some((e) => e.hash === hash)
-          ? s
-          : [
-              { kind, hash, time: Date.now(), detail, session: true, status: "pending" },
-              ...s,
-            ],
+        addSessionTx(s, {
+          kind,
+          hash,
+          time: Date.now(),
+          detail,
+          session: true,
+          status: "pending",
+        }),
       ),
     onTxStatus: (hash, status) =>
       setSession((s) =>
@@ -112,17 +115,20 @@ export default function App() {
     return hash;
   };
 
-  // Session transactions first, then public tips already on-chain.
+  // Session transactions first, then public tips already on-chain. mergeLog
+  // dedupes by hash: a public tip made this session is in both lists, and two
+  // rows with the same key render unreliably (see lib/txlog.ts).
   const entries = useMemo<LogEntry[]>(
-    () => [
-      ...session,
-      ...jar.tips.map((t) => ({
-        kind: "PUBLIC TIP",
-        hash: t.txHash,
-        time: t.timestamp * 1000,
-        detail: `${formatDisplay(t.amount, 18)} STRK`,
-      })),
-    ],
+    () =>
+      mergeLog(
+        session,
+        jar.tips.map((t) => ({
+          kind: "PUBLIC TIP",
+          hash: t.txHash,
+          time: t.timestamp * 1000,
+          detail: `${formatDisplay(t.amount, 18)} STRK`,
+        })),
+      ),
     [session, jar.tips],
   );
 

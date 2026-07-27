@@ -9,17 +9,9 @@
 import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
+import type { LogEntry } from "../lib/txlog";
 
-export type LogEntry = {
-  kind: string;
-  hash: string;
-  time: number;
-  detail?: string;
-  /** Made in this session — highlighted so it stands out from chain history. */
-  session?: boolean;
-  /** Outcome once known. A transaction can be accepted on-chain and still revert. */
-  status?: "pending" | "ok" | "reverted";
-};
+export type { LogEntry };
 
 export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
   const panelRef = useRef<HTMLElement>(null);
@@ -39,10 +31,21 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
   );
 
   // New row expands into place; everything below slides down with it.
+  //
+  // Keyed on the TOP row's hash, not the list length: a new transaction is
+  // always prepended, so a changed top hash means "a new row arrived" — while a
+  // status update or older chain tips loading in leave the top hash untouched
+  // and correctly do not re-animate. Keying on length instead re-ran this on
+  // every change and re-collapsed the same top row.
+  //
+  // clearProps strips the inline height/opacity GSAP applies, so a row can never
+  // be left collapsed or invisible if the animation is interrupted mid-flight —
+  // which is how transactions "stopped showing up".
+  const topHash = props.entries[0]?.hash;
   useGSAP(
     () => {
       const first = listRef.current?.firstElementChild;
-      if (!first || props.entries.length === 0) return;
+      if (!first || !topHash) return;
       gsap
         .timeline()
         .from(first, {
@@ -55,6 +58,7 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
           autoAlpha: 0,
           duration: 0.38,
           ease: "power3.out",
+          clearProps: "height,paddingTop,paddingBottom,borderTopWidth,borderBottomWidth,marginBottom,opacity,visibility",
         })
         .from(
           first.querySelectorAll(".txlog__kind, .txlog__detail, .txlog__hash"),
@@ -64,11 +68,12 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
             duration: 0.28,
             stagger: 0.05,
             ease: "power2.out",
+            clearProps: "opacity,visibility,transform",
           },
           "-=0.18",
         );
     },
-    { dependencies: [props.entries.length], scope: listRef },
+    { dependencies: [topHash], scope: listRef },
   );
 
   return (
