@@ -111,6 +111,7 @@ export default function App() {
               disabled={!jar.address}
               pending={jar.txPending}
               blocksRemaining={jar.blocksRemaining}
+              publicBalance={jar.publicBalance}
               onShield={handleShield}
               onTip={handlePrivateTip}
               tipButtonRef={tipButtonRef}

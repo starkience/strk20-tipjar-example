@@ -6,6 +6,7 @@
 // never from your shielded balance — that lives in your wallet. Tipping is
 // always available; the wallet enforces sufficient funds.
 import { useState, type Ref } from "react";
+import { formatStrk } from "../lib/tipjar";
 
 type StepState = "done" | "active" | "locked";
 
@@ -30,6 +31,8 @@ export function Stepper(props: {
   disabled: boolean;
   pending: boolean;
   blocksRemaining: number | null;
+  /** Public STRK balance — what's available to shield. Public chain data. */
+  publicBalance: bigint | null;
   onShield: (amount: string) => Promise<unknown>;
   onTip: (amount: string) => Promise<unknown>;
   tipButtonRef?: Ref<HTMLButtonElement>;
@@ -68,6 +71,15 @@ export function Stepper(props: {
             SHIELD
           </button>
         </div>
+        {props.publicBalance !== null && (
+          <button
+            className="step__max"
+            type="button"
+            onClick={() => setShieldAmount(formatStrk(props.publicBalance!))}
+          >
+            {formatStrk(props.publicBalance)} STRK
+          </button>
+        )}
       </Step>
 
       <Step n={2} label="RECOMMENDED WAIT" state={s2}>

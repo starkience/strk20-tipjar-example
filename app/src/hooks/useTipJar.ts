@@ -51,6 +51,10 @@ export function useTipJar() {
   // maturity countdown (a note is spendable MATURITY_BLOCKS after creation).
   const [shieldedAtBlock, setShieldedAtBlock] = useState<number | null>(null);
   const [currentBlock, setCurrentBlock] = useState<number | null>(null);
+  // The connected account's PUBLIC STRK balance. This is ordinary public chain
+  // data read over RPC (like the jar's totals) — no wallet involvement and no
+  // consent prompt, unlike shielded balances which the app never reads.
+  const [publicBalance, setPublicBalance] = useState<bigint | null>(null);
   const [tips, setTips] = useState<TipEvent[]>([]);
   const [total, setTotal] = useState<bigint>(0n);
   const [count, setCount] = useState<number>(0);
@@ -61,27 +65,46 @@ export function useTipJar() {
   // through. A ref updates immediately and blocks that. Prevents double-shields.
   const submittingRef = useRef(false);
 
+  // Public STRK balance of an address, over RPC. Public data — no wallet call.
+  const refreshPublicBalance = useCallback(async (addr: string) => {
+    try {
+      const [low, high] = await provider.callContract({
+        contractAddress: CONFIG.strkAddress,
+        entrypoint: "balanceOf",
+        calldata: [addr],
+      });
+      setPublicBalance(BigInt(low) + (BigInt(high) << 128n));
+    } catch {
+      // Non-fatal: the amount field still works without a balance readout.
+    }
+  }, []);
+
   // Attach to the wallet the user picked in the get-starknet modal: build a
   // WalletAccountV6 for sending, then check STRK20 capability.
-  const selectWallet = useCallback(async (wallet: WalletWithStarknetFeatures) => {
+  const selectWallet = useCallback(
+    async (wallet: WalletWithStarknetFeatures) => {
     setError(null);
     try {
       const wa = await WalletAccountV6.connect(provider, wallet);
       setAccount(wa);
       setAddress(wa.address);
+      void refreshPublicBalance(wa.address);
       // Detect STRK20 support via the wallet's advertised Wallet-API versions —
       // no balance query, no viewing key, no private data read.
       setPrivacySupported(await walletSupportsStrk20(wallet));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+    },
+    [refreshPublicBalance],
+  );
 
   // Called when the modal reports a disconnect.
   const clearWallet = useCallback(() => {
     setAccount(null);
     setAddress(null);
     setPrivacySupported(false);
+    setPublicBalance(null);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -128,6 +151,7 @@ export function useTipJar() {
         const { transaction_hash } = await account.execute(calls);
         await provider.waitForTransaction(transaction_hash);
         await refresh();
+        void refreshPublicBalance(account.address);
         return transaction_hash;
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -137,7 +161,7 @@ export function useTipJar() {
         setTxPending(false);
       }
     },
-    [account, refresh],
+    [account, refresh, refreshPublicBalance],
   );
 
   // SHIELD: deposit public STRK into the pool, as its own transaction.
@@ -175,6 +199,7 @@ export function useTipJar() {
         const head = await provider.getBlockNumber();
         setShieldedAtBlock(head);
         setCurrentBlock(head);
+        void refreshPublicBalance(account.address);
         return transaction_hash;
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -184,7 +209,7 @@ export function useTipJar() {
         setTxPending(false);
       }
     },
-    [account, privacySupported],
+    [account, privacySupported, refreshPublicBalance],
   );
 
   // PRIVATE tip: a transfer-only action spending funds ALREADY shielded.
@@ -267,6 +292,7 @@ export function useTipJar() {
     sendPrivateTip,
     shield,
     blocksRemaining,
+    publicBalance,
     tips,
     total,
     count,
