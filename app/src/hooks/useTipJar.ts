@@ -68,6 +68,13 @@ export function useTipJar() {
   const [publicBalances, setPublicBalances] = useState<Record<string, bigint>>(
     {},
   );
+  // The user's SHIELDED balances, keyed by token address. Populated only when
+  // they explicitly ask (step 2) — reading these is wallet-mediated and prompts
+  // for consent, so it never happens on its own.
+  const [shieldedBalances, setShieldedBalances] = useState<Record<
+    string,
+    bigint
+  > | null>(null);
   // Verified token list from AVNU (falls back to the built-in defaults).
   const [tokens, setTokens] = useState<Token[]>(TOKENS);
   const [tips, setTips] = useState<TipEvent[]>([]);
@@ -118,6 +125,7 @@ export function useTipJar() {
     setAddress(null);
     setPrivacySupported(false);
     setPublicBalances({});
+    setShieldedBalances(null);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -223,6 +231,35 @@ export function useTipJar() {
       }
     },
     [account, privacySupported, refreshPublicBalance],
+  );
+
+  // Ask the WALLET for the user's own shielded balances. This is a disclosure:
+  // the wallet prompts for consent before answering. Wired to an explicit button
+  // so it is always the user's decision — the dapp still never sees a viewing
+  // key, only the numbers for the tokens it names.
+  const readShieldedBalances = useCallback(
+    async (wanted: Token[]) => {
+      if (!account) throw new Error("connect a wallet first");
+      setError(null);
+      try {
+        const entries = await account.strk20Balances(
+          wanted.map((t) => t.address),
+        );
+        const map: Record<string, bigint> = {};
+        for (const t of wanted) {
+          const hit = entries.find(
+            (e) => BigInt(e.token) === BigInt(t.address),
+          );
+          map[t.address] = hit ? BigInt(hit.balance) : 0n;
+        }
+        setShieldedBalances(map);
+        return map;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        throw e;
+      }
+    },
+    [account],
   );
 
   // PRIVATE SWAP: trade a shielded token for shielded STRK, via AVNU.
@@ -376,6 +413,8 @@ export function useTipJar() {
     blocksRemaining,
     publicBalances,
     tokens,
+    shieldedBalances,
+    readShieldedBalances,
     tips,
     total,
     count,

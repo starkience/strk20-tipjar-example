@@ -1,10 +1,11 @@
-// Stepper — the private flow: shield, wait, swap to STRK, tip.
+// Stepper — the private flow: shield, check, wait, swap to STRK, tip.
 // The structure is the explanation; no prose beyond the labels.
 //
-// This component reads NO private state. Step status comes only from what the
-// app itself did (did you shield in this session, has that note matured) and
-// from PUBLIC token balances. Tipping is always available; the wallet enforces
-// sufficient funds. The swap step is skipped when you shielded STRK already.
+// Step 2 is the ONE place the app reads private state, and only because the
+// user pressed SHOW: after shielding you want to confirm the funds landed.
+// Everything else derives from what the app itself did (a shield this session,
+// block maturity) or from PUBLIC balances. Tipping is always available; the
+// wallet enforces sufficient funds. Swap is skipped when STRK was shielded.
 import { useEffect, useRef, useState, type Ref } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
@@ -53,8 +54,10 @@ export function Stepper(props: {
   pending: boolean;
   blocksRemaining: number | null;
   publicBalances: Record<string, bigint>;
+  shieldedBalances: Record<string, bigint> | null;
   tokens: Token[];
   onShield: (token: Token, amount: string) => Promise<unknown>;
+  onShowShielded: (tokens: Token[]) => Promise<unknown>;
   onSwap: (token: Token, amount: string) => Promise<unknown>;
   onTip: (amount: string) => Promise<unknown>;
   tipButtonRef?: Ref<HTMLButtonElement>;
@@ -83,11 +86,18 @@ export function Stepper(props: {
   const maturing = shieldedNow && props.blocksRemaining! > 0;
   const isStrk = token.address === STRK.address;
   const balance = props.publicBalances[token.address];
+  const checked = props.shieldedBalances !== null;
+
+  // Worth reporting in step 2: what was shielded, plus STRK (what a tip is sent
+  // in) when they differ.
+  const ofInterest = isStrk ? [STRK] : [token, STRK];
 
   const s1: StepState = shieldedNow ? "done" : "active";
-  const s2: StepState = maturing ? "active" : shieldedNow ? "done" : "locked";
-  const s3: StepState = isStrk || swapped ? "done" : shieldedNow ? "active" : "locked";
-  const s4: StepState = "active";
+  const s2: StepState = checked ? "done" : shieldedNow ? "active" : "locked";
+  const s3: StepState = maturing ? "active" : shieldedNow ? "done" : "locked";
+  const s4: StepState =
+    isStrk || swapped ? "done" : shieldedNow ? "active" : "locked";
+  const s5: StepState = "active";
 
   return (
     <ol className="stepper">
@@ -141,13 +151,39 @@ export function Stepper(props: {
         </div>
       </Step>
 
-      <Step n={2} label="RECOMMENDED WAIT" state={s2}>
+      <Step n={2} label="PRIVATE BALANCE" state={s2}>
+        <div className="step__row">
+          <button
+            className="btn btn--ghost"
+            type="button"
+            disabled={props.disabled}
+            onClick={() => props.onShowShielded(ofInterest).catch(() => {})}
+          >
+            SHOW
+          </button>
+          <span className="step__meta">
+            {props.shieldedBalances
+              ? ofInterest
+                  .map(
+                    (t) =>
+                      `${formatUnits(
+                        props.shieldedBalances![t.address] ?? 0n,
+                        t.decimals,
+                      )} ${t.symbol}`,
+                  )
+                  .join(" · ")
+              : "—"}
+          </span>
+        </div>
+      </Step>
+
+      <Step n={3} label="RECOMMENDED WAIT" state={s3}>
         <span className="step__count">
           {maturing ? `${props.blocksRemaining} BLOCKS` : shieldedNow ? "READY" : "—"}
         </span>
       </Step>
 
-      <Step n={3} label={`SWAP → ${STRK.symbol}`} state={s3}>
+      <Step n={4} label={`SWAP → ${STRK.symbol}`} state={s4}>
         {isStrk ? (
           <span className="step__count">—</span>
         ) : (
@@ -169,7 +205,7 @@ export function Stepper(props: {
         )}
       </Step>
 
-      <Step n={4} label="TIP" state={s4}>
+      <Step n={5} label="TIP" state={s5}>
         <div className="step__row">
           <span className="field">
             <input
