@@ -4,7 +4,9 @@
 
 const RULES: [RegExp, string][] = [
   [/user_refused|user rejected|rejected by user|declined/i, "REJECTED IN WALLET"],
-  [/insufficient (balance|funds)|not enough/i, "NOT ENOUGH BALANCE"],
+  // Underscored protocol codes (INSUFFICIENT_PRIVATE_BALANCE) as well as prose.
+  [/insufficient[_ ]?private/i, "NOT ENOUGH SHIELDED BALANCE"],
+  [/insufficient|not enough/i, "NOT ENOUGH BALANCE"],
   [/maturity|not mature|too recent|10 blocks/i, "FUNDS NOT SPENDABLE YET — WAIT"],
   [/not registered|register/i, "ACCOUNT NOT REGISTERED IN THE POOL"],
   [/no route|no liquidity/i, "NO SWAP ROUTE FOR THIS PAIR"],

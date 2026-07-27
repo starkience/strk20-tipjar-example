@@ -13,10 +13,11 @@
 import { useEffect, useRef, useState, type Ref } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { STRK, type Token } from "../config";
+import { POOL_FEE_STRK, STRK, type Token } from "../config";
 import { sameAddress } from "../lib/address";
 import { formatDisplay, formatUnits } from "../lib/tipjar";
 import { TokenSelect } from "./TokenSelect";
+import { Pills } from "./Pills";
 
 const SECONDS_PER_BLOCK = 2.1;
 
@@ -141,6 +142,7 @@ export function Stepper(props: {
   const balance = props.publicBalances[token.address];
   const checked = props.shieldedBalances !== null;
   const subject = lastShielded ?? token;
+  const shieldedOf = (t: Token) => props.shieldedBalances?.[t.address];
 
   const s1: StepState = shieldedNow ? "done" : "active";
   const s2: StepState = checked ? "done" : "active";
@@ -204,6 +206,12 @@ export function Stepper(props: {
             SHIELD
           </button>
         </div>
+        <Pills
+          balance={balance}
+          decimals={token.decimals}
+          reserve={isStrk ? POOL_FEE_STRK : 0n}
+          onPick={setShieldAmount}
+        />
         <div className="step__note">
           <span className="step__note-label">PUBLIC</span>
           {balance !== undefined ? (
@@ -307,6 +315,11 @@ export function Stepper(props: {
             SWAP
           </button>
         </div>
+        <Pills
+          balance={shieldedOf(token)}
+          decimals={token.decimals}
+          onPick={setSwapAmount}
+        />
       </Step>
 
       <Step n={5} label="TIP" state={s5}>
@@ -332,6 +345,12 @@ export function Stepper(props: {
             {props.pending ? "…" : "TIP"}
           </button>
         </div>
+        <Pills
+          balance={shieldedOf(STRK)}
+          decimals={STRK.decimals}
+          reserve={POOL_FEE_STRK}
+          onPick={setTipAmount}
+        />
       </Step>
     </ol>
   );

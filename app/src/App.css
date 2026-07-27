@@ -715,3 +715,29 @@
   overflow: hidden;
   transition: background 160ms ease;
 }
+
+/* ---- Amount shortcuts (25% / 50% / MAX) ------------------------------ */
+.pills {
+  display: flex;
+  gap: 6px;
+}
+.pill {
+  font-family: var(--display);
+  font-size: 8px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  padding: 5px 8px;
+  cursor: pointer;
+  line-height: 1;
+}
+.pill:hover {
+  background: var(--gold-lit);
+}
+.pill:active {
+  background: var(--gold);
+}
+.pill:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}

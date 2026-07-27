@@ -102,3 +102,14 @@ describe("friendlyError", () => {
     expect(friendlyError(undefined)).toBe("SOMETHING WENT WRONG");
   });
 });
+
+describe("friendlyError — underscored protocol codes", () => {
+  it("distinguishes shielded from public balance shortfalls", () => {
+    expect(
+      friendlyError(new Error("An error occurred (INSUFFICIENT_PRIVATE_BALANCE)")),
+    ).toBe("NOT ENOUGH SHIELDED BALANCE");
+    expect(friendlyError(new Error("INSUFFICIENT_BALANCE"))).toBe(
+      "NOT ENOUGH BALANCE",
+    );
+  });
+});

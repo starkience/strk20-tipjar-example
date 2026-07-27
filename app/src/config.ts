@@ -55,6 +55,13 @@ TOKENS.forEach((t) => {
 
 export const STRK = TOKENS[0];
 
+/**
+ * The pool charges a flat fee per private operation, denominated in STRK
+ * (measured on mainnet). MAX on STRK leaves it behind, or the follow-up
+ * operation can't pay for itself.
+ */
+export const POOL_FEE_STRK = 4n * 10n ** 18n;
+
 export const CONFIG = {
   rpcUrl: "https://rpc.starknet.lava.build/rpc/v0_9",
   strkAddress: STRK.address,
