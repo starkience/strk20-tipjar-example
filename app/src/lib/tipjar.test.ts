@@ -130,3 +130,14 @@ describe("toInputAmount", () => {
     expect(parseUnits(toInputAmount(v, 18), 18) <= v).toBe(true);
   });
 });
+
+describe("friendlyError — replay protection", () => {
+  it("explains a duplicated outside-nonce as a duplicate, not a failure", () => {
+    const raw =
+      "Execution failed. Failure reason: (0x617267656e742f6d756c746963616c6c2d6661696c6564 " +
+      "('argent/multicall-failed'), 0x1, ('argent/duplicated-outside-nonce'))";
+    expect(friendlyError(new Error(raw))).toBe(
+      "ALREADY SUBMITTED — THE FIRST ONE LIKELY WENT THROUGH. CHECK YOUR BALANCE BEFORE RETRYING",
+    );
+  });
+});

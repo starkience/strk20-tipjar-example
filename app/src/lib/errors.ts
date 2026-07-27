@@ -4,6 +4,12 @@
 
 const RULES: [RegExp, string][] = [
   [/user_refused|user rejected|rejected by user|declined/i, "REJECTED IN WALLET"],
+  // execute_from_outside carries a replay-protection nonce. This means the same
+  // signed payload was submitted twice: the FIRST one consumed the nonce and
+  // very likely succeeded, so this is a duplicate being rejected — not a
+  // failure of the operation the user asked for.
+  [/duplicated[-_ ]?outside[-_ ]?nonce/i,
+   "ALREADY SUBMITTED — THE FIRST ONE LIKELY WENT THROUGH. CHECK YOUR BALANCE BEFORE RETRYING"],
   // A prompt dismissed without a decision never settles — see withWalletTimeout.
   [/wallet_no_response/i, "NO RESPONSE FROM WALLET — CHECK IT BEFORE RETRYING"],
   // Underscored protocol codes (INSUFFICIENT_PRIVATE_BALANCE) as well as prose.
