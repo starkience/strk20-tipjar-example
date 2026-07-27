@@ -71,8 +71,19 @@ export const CONFIG = {
   deployBlock: 12234555,
   ownerAddress:
     "0x06196AFC75E23edc79ecF3982F84dDB9142EcA19CDcE678b42Cface67F063eAa",
-  // AVNU paymaster key, used to sponsor gas on private swaps. Supplied via
-  // .env.local (gitignored) — NEVER commit it. Note that any value bundled into
-  // a browser app is publicly readable; proxy it server-side for production.
-  avnuPaymasterApiKey: import.meta.env.VITE_AVNU_PAYMASTER_API_KEY ?? "",
+  // Private swaps go through AVNU's paymaster, which requires an API key.
+  //
+  // A key bundled into a browser app is publicly readable, so in production the
+  // key stays server-side: the SDK is pointed at our own /api/paymaster route
+  // (see app/api/paymaster/), which attaches the key and forwards the request.
+  //
+  // `vite dev` serves no serverless functions, so local development instead
+  // reads a key from .env.local (gitignored, never committed).
+  avnuPaymasterApiKey: import.meta.env.DEV
+    ? (import.meta.env.VITE_AVNU_PAYMASTER_API_KEY ?? "")
+    : "",
+  avnuPaymasterBaseUrl:
+    import.meta.env.DEV || typeof window === "undefined"
+      ? undefined
+      : `${window.location.origin}/api/paymaster`,
 };

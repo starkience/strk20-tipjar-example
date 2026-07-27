@@ -397,15 +397,22 @@ export function useTipJar(opts?: {
         });
         if (!quote) throw new Error("no route found for this pair");
 
-        const { transactionHash } = await executePrivateSwap({
-          quote,
-          slippage: 0.05,
-          takerAddress: account.address,
-          poolAddress: PRIVACY_POOL_ADDRESS,
-          feeMode: { poolFeeToken: STRK.address },
-          prover: createStrk20WalletProver(account),
-          paymasterApiKey: CONFIG.avnuPaymasterApiKey || undefined,
-        });
+        const { transactionHash } = await executePrivateSwap(
+          {
+            quote,
+            slippage: 0.05,
+            takerAddress: account.address,
+            poolAddress: PRIVACY_POOL_ADDRESS,
+            feeMode: { poolFeeToken: STRK.address },
+            prover: createStrk20WalletProver(account),
+            // Empty in production: the key is attached by our proxy instead.
+            paymasterApiKey: CONFIG.avnuPaymasterApiKey || undefined,
+          },
+          // Route paymaster calls through our own serverless function so the
+          // API key never ships in the bundle. Undefined in dev, where the SDK
+          // talks to AVNU directly using the key above.
+          { paymasterBaseUrl: CONFIG.avnuPaymasterBaseUrl },
+        );
         onTxRef.current?.(
           "PRIVATE SWAP",
           transactionHash,
