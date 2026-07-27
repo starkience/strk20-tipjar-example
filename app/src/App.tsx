@@ -1,26 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { WalletConnectModal, useConnect } from "@starknet-io/get-starknet-ui";
 import { useTipJar } from "./hooks/useTipJar";
 import { ModeToggle } from "./components/ModeToggle";
-import { FlowDiagram } from "./components/FlowDiagram";
+import { Stepper } from "./components/Stepper";
 import { TipForm } from "./components/TipForm";
-import { PoolPanel } from "./components/PoolPanel";
 import { TipWall } from "./components/TipWall";
-import { TxLog } from "./components/TxLog";
+import { TxLog, type LogEntry } from "./components/TxLog";
 import { COIN_SVG } from "./lib/pixelArt";
+import { formatStrk } from "./lib/tipjar";
 import { playCoinSound } from "./lib/coinSound";
 import { launchCoinFlight } from "./lib/coinFlight";
 import "./App.css";
 
 export default function App() {
   const jar = useTipJar();
-  // Wallet discovery + selection is handled by the standard get-starknet modal;
-  // we just react to which wallet it connected.
   const { connected } = useConnect();
   const tipButtonRef = useRef<HTMLButtonElement>(null);
-  const creatorRef = useRef<HTMLDivElement>(null);
+  const coinTargetRef = useRef<HTMLDivElement>(null);
   const [showLog, setShowLog] = useState(true);
   const [mode, setMode] = useState<"public" | "private">("public");
+  // Transactions made in this session, newest first — the log fills as the
+  // stepper advances.
+  const [session, setSession] = useState<LogEntry[]>([]);
 
   const { selectWallet, clearWallet } = jar;
   useEffect(() => {
@@ -28,28 +29,59 @@ export default function App() {
     else clearWallet();
   }, [connected, selectWallet, clearWallet]);
 
-  // Fall back to public if the connected wallet can't do STRK20.
   const isPrivate = mode === "private" && jar.privacySupported;
 
-  // Send via the selected path, then fire the retro feedback — but only once the
-  // tx is confirmed on-chain (both send fns resolve after confirmation and throw
-  // on failure, so the coin never flips for a rejected or reverted tip).
-  const handleSubmit = async (amount: string) => {
-    const result = isPrivate
-      ? await jar.sendPrivateTip(amount)
-      : await jar.sendTip(amount);
-    if (!result) return result; // guarded no-op (already in flight)
+  const log = (kind: string, hash: string, detail?: string) =>
+    setSession((s) => [{ kind, hash, time: Date.now(), detail }, ...s]);
+
+  const celebrate = () => {
     playCoinSound();
-    launchCoinFlight(tipButtonRef.current, creatorRef.current);
-    return result;
+    launchCoinFlight(tipButtonRef.current, coinTargetRef.current);
   };
+
+  const handlePublicTip = async (amount: string) => {
+    const hash = await jar.sendTip(amount);
+    if (!hash) return hash;
+    log("PUBLIC TIP", hash, `${amount} STRK`);
+    celebrate();
+    return hash;
+  };
+
+  const handleShield = async (amount: string) => {
+    const hash = await jar.shield(amount);
+    if (!hash) return hash;
+    log("SHIELD", hash, `${amount} STRK`);
+    return hash;
+  };
+
+  const handlePrivateTip = async (amount: string) => {
+    const hash = await jar.sendPrivateTip(amount);
+    if (!hash) return hash;
+    log("PRIVATE TIP", hash, `${amount} STRK`);
+    celebrate();
+    return hash;
+  };
+
+  // Session transactions first, then public tips already on-chain.
+  const entries = useMemo<LogEntry[]>(
+    () => [
+      ...session,
+      ...jar.tips.map((t) => ({
+        kind: "PUBLIC TIP",
+        hash: t.txHash,
+        time: t.timestamp * 1000,
+        detail: `${formatStrk(t.amount)} STRK`,
+      })),
+    ],
+    [session, jar.tips],
+  );
 
   return (
     <div className="screen">
       <div className="layout">
         <main className="cabinet">
           <header className="cabinet__top">
-            <div className="brand">
+            <div className="brand" ref={coinTargetRef}>
               <span
                 className="brand__coin"
                 aria-hidden
@@ -64,8 +96,6 @@ export default function App() {
               >
                 {showLog ? "HIDE" : "LOG"}
               </button>
-              {/* Stock get-starknet connect button + popup, exactly as
-                  documented — no styling overrides. */}
               <WalletConnectModal />
             </div>
           </header>
@@ -76,35 +106,33 @@ export default function App() {
             privateEnabled={jar.privacySupported}
           />
 
-          <FlowDiagram isPrivate={isPrivate} ref={creatorRef} />
-
-          <TipForm
-            disabled={!jar.address}
-            pending={jar.txPending}
-            isPrivate={isPrivate}
-            onSubmit={handleSubmit}
-            buttonRef={tipButtonRef}
-          />
-
-          {isPrivate && (
-            <PoolPanel
+          {isPrivate ? (
+            <Stepper
               disabled={!jar.address}
               pending={jar.txPending}
               balance={jar.shieldedBalance}
-              onShield={jar.shield}
+              blocksRemaining={jar.blocksRemaining}
+              onShield={handleShield}
               onCheckBalance={jar.readShieldedBalance}
+              onTip={handlePrivateTip}
+              tipButtonRef={tipButtonRef}
+            />
+          ) : (
+            <TipForm
+              disabled={!jar.address}
+              pending={jar.txPending}
+              isPrivate={false}
+              onSubmit={handlePublicTip}
+              buttonRef={tipButtonRef}
             />
           )}
 
-          {jar.address && !jar.privacySupported && (
-            <p className="note">PRIVATE NEEDS A READY WALLET</p>
-          )}
-          {jar.error && <p className="error">✖ {jar.error}</p>}
+          {jar.error && <p className="error">{jar.error}</p>}
 
           <TipWall total={jar.total} count={jar.count} />
         </main>
 
-        {showLog && <TxLog tips={jar.tips} onClose={() => setShowLog(false)} />}
+        {showLog && <TxLog entries={entries} onClose={() => setShowLog(false)} />}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 /* 8-bit arcade cabinet on paper white. Hard edges, chunky shadows, no radii.
-   The page never scrolls — the TX log scrolls internally. */
+   The page never scrolls — the log scrolls internally. */
 
 .screen {
   height: 100svh;
@@ -16,14 +16,14 @@
   align-items: stretch;
   justify-content: center;
   width: 100%;
-  max-width: 940px;
+  max-width: 900px;
   max-height: 100%;
 }
 
 /* ---- Cabinet --------------------------------------------------------- */
 .cabinet {
-  flex: 1 1 520px;
-  max-width: 560px;
+  flex: 1 1 500px;
+  max-width: 540px;
   min-width: 0;
   background: var(--paper);
   border: 4px solid var(--ink);
@@ -66,6 +66,7 @@
 
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -76,7 +77,7 @@
   color: var(--ink);
   background: var(--paper);
   border: 3px solid var(--ink);
-  padding: 10px 13px;
+  padding: 10px 14px;
   cursor: pointer;
   box-shadow: 0 5px 0 var(--ink);
   transition:
@@ -98,20 +99,16 @@
   box-shadow: 0 5px 0 var(--ink);
 }
 
-.btn--log {
+.btn--log,
+.btn--ghost {
   font-size: 10px;
-  padding: 10px 11px;
+  padding: 9px 11px;
 }
 
-.btn--tip,
-.btn--private {
-  font-size: 13px;
-  padding: 13px 20px;
-  white-space: nowrap;
-}
 .btn--tip {
   background: var(--gold);
   box-shadow: 0 5px 0 var(--gold-dark);
+  font-size: 12px;
 }
 .btn--tip:hover {
   background: var(--gold-lit);
@@ -123,18 +120,19 @@
   box-shadow: 0 5px 0 var(--gold-dark);
 }
 
-.btn--private {
+.btn--dark {
   background: var(--ink);
   color: var(--gold-lit);
   box-shadow: 0 5px 0 #000;
+  font-size: 12px;
 }
-.btn--private:hover {
+.btn--dark:hover {
   background: #2b2b2b;
 }
-.btn--private:active {
+.btn--dark:active {
   box-shadow: 0 0 0 #000;
 }
-.btn--private:disabled {
+.btn--dark:disabled {
   box-shadow: 0 5px 0 #000;
 }
 
@@ -169,196 +167,142 @@
   cursor: not-allowed;
 }
 
-/* ---- Flow diagram (what the mode actually does) ---------------------- */
-.flow {
-  display: grid;
-  grid-template-columns: auto 1fr auto 1fr auto;
-  align-items: start;
-  gap: 4px;
-  border: 3px solid var(--ink);
-  padding: 16px 14px 0;
-  background: #fffdf7;
-}
-.flow--private {
-  background: #f4f4f6;
-}
-
-.flow__node {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 62px;
-}
-.flow__sprite {
-  width: 34px;
-  height: 34px;
-  display: block;
-}
-.flow__label {
-  font-family: var(--display);
-  font-size: 8px;
-  color: var(--ink);
-  letter-spacing: 0.5px;
-}
-
-.flow__arrow {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding-top: 8px;
-}
-.flow__step {
-  font-family: var(--display);
-  font-size: 7px;
-  color: var(--gold-dark);
-  letter-spacing: 0.5px;
-  min-height: 8px;
-}
-.flow--private .flow__step {
-  color: #52525b;
-}
-.flow__line {
-  font-family: var(--body);
-  font-size: 18px;
-  line-height: 1;
-  color: var(--ink);
-}
-
-.flow__caption {
-  grid-column: 1 / -1;
-  margin-top: 14px;
-  border-top: 3px dashed var(--ink);
-  padding: 8px 0;
-  text-align: center;
-  font-family: var(--display);
-  font-size: 8px;
-  letter-spacing: 0.5px;
-  color: var(--gold-dark);
-}
-.flow--private .flow__caption {
-  color: var(--ink);
-}
-
-/* ---- Amount + send --------------------------------------------------- */
-.tip-form {
-  display: flex;
-  align-items: stretch;
-  gap: 12px;
-}
-.tip-form__field {
+/* ---- Shared amount field --------------------------------------------- */
+.field {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   border: 3px solid var(--ink);
   background: var(--paper);
 }
-.tip-form__input {
+.field__input {
   font-family: var(--display);
-  font-size: 15px;
+  font-size: 14px;
   color: var(--ink);
   background: transparent;
   border: none;
   outline: none;
-  padding: 12px;
+  padding: 11px;
   width: 100%;
   min-width: 0;
 }
-.tip-form__unit {
+.field__unit {
   font-family: var(--display);
   font-size: 10px;
   color: var(--gold-dark);
-  padding: 0 12px;
+  padding: 0 11px;
   border-left: 3px solid var(--ink);
   display: flex;
   align-items: center;
 }
 
-/* ---- Pool panel (decoupled flow: shield now, tip later) -------------- */
-.pool {
-  border: 3px solid var(--ink);
-  background: #f4f4f6;
-  padding: 12px;
+/* Public mode: one row */
+.tip-form {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+/* ---- Stepper (private flow) ------------------------------------------ */
+.stepper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
-.pool__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+
+.step {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  padding-bottom: 16px;
+  position: relative;
 }
-.pool__title {
-  font-family: var(--display);
-  font-size: 9px;
-  color: var(--ink);
+/* connector line between badges */
+.step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 30px;
+  bottom: 2px;
+  width: 3px;
+  background: var(--ink);
 }
-.pool__value {
-  font-family: var(--display);
-  font-size: 12px;
-  color: var(--gold-dark);
+.step--locked:not(:last-child)::before {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--ink) 0 4px,
+    transparent 4px 8px
+  );
 }
-.pool__row {
-  display: flex;
-  gap: 8px;
-}
-.pool__field {
-  flex: 1;
-  min-width: 0;
-  display: flex;
+
+.step__badge {
+  width: 28px;
+  height: 28px;
   border: 3px solid var(--ink);
   background: var(--paper);
-}
-.pool__input {
   font-family: var(--display);
-  font-size: 13px;
-  color: var(--ink);
-  background: transparent;
-  border: none;
-  outline: none;
-  padding: 9px 10px;
-  width: 100%;
-  min-width: 0;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
 }
-.btn--shield {
+.step--active .step__badge {
+  background: var(--gold);
+}
+.step--done .step__badge {
   background: var(--ink);
   color: var(--gold-lit);
-  box-shadow: 0 5px 0 #000;
+}
+
+.step__body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+.step__label {
+  font-family: var(--display);
   font-size: 10px;
+  color: var(--ink);
+  padding-top: 7px;
 }
-.btn--shield:hover {
-  background: #2b2b2b;
+.step--locked .step__label {
+  opacity: 0.4;
 }
-.btn--shield:active {
-  box-shadow: 0 0 0 #000;
+.step__row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
 }
-.btn--shield:disabled {
-  box-shadow: 0 5px 0 #000;
+.step__meta {
+  font-family: var(--display);
+  font-size: 11px;
+  color: var(--gold-dark);
+  display: flex;
+  align-items: center;
 }
-.btn--ghost {
-  font-size: 10px;
+.step__count {
+  font-family: var(--display);
+  font-size: 20px;
+  color: var(--ink);
 }
-.pool__note {
-  font-family: var(--body);
-  font-size: 15px;
-  line-height: 1.25;
-  color: #52525b;
+.step--locked .step__count {
+  opacity: 0.4;
+}
+.step--locked .step__row {
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 /* ---- Status ---------------------------------------------------------- */
-.note,
 .error {
   font-family: var(--display);
   font-size: 9px;
   line-height: 1.7;
-}
-.note {
-  color: var(--blue);
-}
-.error {
   color: var(--red);
   word-break: break-word;
   max-height: 3.4em;
@@ -403,7 +347,7 @@
 
 /* ---- TX log ---------------------------------------------------------- */
 .txlog {
-  flex: 0 1 300px;
+  flex: 0 1 280px;
   min-width: 0;
   background: var(--paper);
   border: 4px solid var(--ink);
@@ -453,44 +397,36 @@
 .txlog__row {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   border: 3px solid var(--ink);
   padding: 8px 9px;
 }
-.txlog__who {
+.txlog__kind {
   font-family: var(--display);
   font-size: 9px;
+  color: var(--ink);
+}
+.txlog__detail {
+  font-family: var(--display);
+  font-size: 9px;
+  color: var(--green);
+}
+.txlog__hash {
+  font-family: var(--body);
+  font-size: 16px;
   color: var(--blue);
   text-decoration: none;
 }
-.txlog__who:hover {
+.txlog__hash:hover {
   color: var(--ink);
   background: var(--gold-lit);
 }
-.txlog__amt {
-  font-family: var(--display);
-  font-size: 10px;
-  color: var(--green);
-}
-.txlog__when {
-  font-family: var(--body);
-  font-size: 15px;
-  color: #666;
-}
 .txlog__empty {
   font-family: var(--display);
-  font-size: 9px;
+  font-size: 10px;
   color: var(--gold-dark);
   text-align: center;
   padding: 14px 0;
-}
-.txlog__note {
-  font-family: var(--display);
-  font-size: 8px;
-  line-height: 1.6;
-  color: #666;
-  border-top: 3px dashed var(--ink);
-  padding-top: 10px;
 }
 
 /* ---- Coin flight overlay (spawned on <body>) ------------------------- */

@@ -1,47 +1,41 @@
-// TxLog — the right-side transaction log. Scrolls internally so the page keeps
-// its no-scroll layout. Every row is a public `Tipped` event; private (STRK20)
-// tips never emit that event, so they never appear here — the note says so.
-import { formatStrk, type TipEvent } from "../lib/tipjar";
+// TxLog — the side panel. Fills in as the stepper advances: every transaction
+// this session (shield, private tip, public tip) plus public tips already
+// on-chain. Private tips show only their own hash — there is nothing public to
+// read about them.
+export type LogEntry = {
+  kind: string;
+  hash: string;
+  time: number;
+  detail?: string;
+};
 
-const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
-
-export function TxLog(props: { tips: TipEvent[]; onClose: () => void }) {
+export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
   return (
     <aside className="txlog">
       <div className="txlog__head">
-        <span className="txlog__title">◆ TX LOG ◆</span>
-        <button
-          className="txlog__close"
-          onClick={props.onClose}
-          aria-label="Hide transaction log"
-        >
+        <span className="txlog__title">TX LOG</span>
+        <button className="txlog__close" onClick={props.onClose} aria-label="Hide">
           ✕
         </button>
       </div>
 
       <ul className="txlog__list">
-        {props.tips.map((t) => (
-          <li key={t.txHash} className="txlog__row">
+        {props.entries.map((e) => (
+          <li key={e.hash} className="txlog__row">
+            <span className="txlog__kind">{e.kind}</span>
+            {e.detail && <span className="txlog__detail">{e.detail}</span>}
             <a
-              className="txlog__who"
-              href={`https://voyager.online/tx/${t.txHash}`}
+              className="txlog__hash"
+              href={`https://voyager.online/tx/${e.hash}`}
               target="_blank"
               rel="noreferrer"
             >
-              {short(t.tipper)}
+              {e.hash.slice(0, 10)}…
             </a>
-            <span className="txlog__amt">{formatStrk(t.amount)} STRK</span>
-            <span className="txlog__when">
-              {new Date(t.timestamp * 1000).toLocaleString()}
-            </span>
           </li>
         ))}
-        {props.tips.length === 0 && (
-          <li className="txlog__empty">NO PUBLIC TIPS YET</li>
-        )}
+        {props.entries.length === 0 && <li className="txlog__empty">—</li>}
       </ul>
-
-      <p className="txlog__note">🔒 Private tips never appear here.</p>
     </aside>
   );
 }

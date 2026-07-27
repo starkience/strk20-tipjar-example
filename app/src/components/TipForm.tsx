@@ -18,24 +18,24 @@ export function TipForm(props: {
         props.onSubmit(amount).catch(() => {});
       }}
     >
-      <span className="tip-form__field">
+      <span className="field">
         <input
-          className="tip-form__input"
+          className="field__input"
           type="text"
           inputMode="decimal"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           aria-label="Tip amount in STRK"
         />
-        <span className="tip-form__unit">STRK</span>
+        <span className="field__unit">STRK</span>
       </span>
       <button
         ref={props.buttonRef}
-        className={`btn ${props.isPrivate ? "btn--private" : "btn--tip"}`}
+        className={`btn ${props.isPrivate ? "btn--dark" : "btn--tip"}`}
         type="submit"
         disabled={props.disabled || props.pending}
       >
-        {props.pending ? "SENDING…" : props.isPrivate ? "🔒 TIP" : "▸ TIP"}
+        {props.pending ? "…" : "TIP"}
       </button>
     </form>
   );

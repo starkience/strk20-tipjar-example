@@ -22,6 +22,9 @@ import {
 
 const provider = new RpcProvider({ nodeUrl: CONFIG.rpcUrl });
 
+/** Notes mature 10 blocks after creation — they cannot be spent before that. */
+export const MATURITY_BLOCKS = 10;
+
 // Capability check that NEVER touches balances or keys: ask the wallet which
 // Wallet-API versions it supports. STRK20 (the Privacy Wallet API) ships in
 // v0.10.3, so a wallet advertising >= 0.10 supports the private actions. This
@@ -47,6 +50,10 @@ export function useTipJar() {
   // The user's own shielded balance — only populated when they explicitly ask
   // (readShieldedBalance), since that read prompts the wallet for consent.
   const [shieldedBalance, setShieldedBalance] = useState<bigint | null>(null);
+  // Block of the last shield, and the chain head — together they drive the
+  // maturity countdown (a note is spendable MATURITY_BLOCKS after creation).
+  const [shieldedAtBlock, setShieldedAtBlock] = useState<number | null>(null);
+  const [currentBlock, setCurrentBlock] = useState<number | null>(null);
   const [tips, setTips] = useState<TipEvent[]>([]);
   const [total, setTotal] = useState<bigint>(0n);
   const [count, setCount] = useState<number>(0);
@@ -168,6 +175,10 @@ export function useTipJar() {
         const { transaction_hash } =
           await account.strk20InvokeTransaction(actions);
         await provider.waitForTransaction(transaction_hash);
+        // Anchor the maturity countdown at the block the shield landed in.
+        const head = await provider.getBlockNumber();
+        setShieldedAtBlock(head);
+        setCurrentBlock(head);
         return transaction_hash;
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -249,6 +260,29 @@ export function useTipJar() {
     refresh();
   }, [refresh]);
 
+  // Poll the chain head while a shielded note is still maturing, so the
+  // countdown advances. Stops once the note is spendable.
+  useEffect(() => {
+    if (shieldedAtBlock === null) return;
+    if (currentBlock !== null && currentBlock - shieldedAtBlock >= MATURITY_BLOCKS) {
+      return;
+    }
+    const id = setInterval(() => {
+      provider
+        .getBlockNumber()
+        .then(setCurrentBlock)
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(id);
+  }, [shieldedAtBlock, currentBlock]);
+
+  // Blocks left before the shielded note can be spent. null = nothing shielded
+  // in this session yet.
+  const blocksRemaining =
+    shieldedAtBlock === null || currentBlock === null
+      ? null
+      : Math.max(0, MATURITY_BLOCKS - (currentBlock - shieldedAtBlock));
+
   return {
     address,
     selectWallet,
@@ -259,6 +293,7 @@ export function useTipJar() {
     shield,
     shieldedBalance,
     readShieldedBalance,
+    blocksRemaining,
     tips,
     total,
     count,
