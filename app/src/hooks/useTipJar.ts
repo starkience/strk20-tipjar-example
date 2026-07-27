@@ -19,6 +19,7 @@ import {
 import { CONFIG, POOL_FEE_STRK, STRK, TOKENS, type Token } from "../config";
 import { fetchAllowance, fetchBalances, fetchTokens } from "../lib/tokens";
 import { friendlyError } from "../lib/errors";
+import type { LogPatch } from "../lib/txlog";
 import {
   buildPrivateTipActions,
   buildShieldActions,
@@ -81,6 +82,36 @@ async function settle(hash: string, ms = 60_000): Promise<TxStatus> {
 /** Notes mature 10 blocks after creation — they cannot be spent before that. */
 export const MATURITY_BLOCKS = 10;
 
+/**
+ * Poll the public balance until it drops by at least `atLeast`, or give up.
+ *
+ * This is how a shield is confirmed against the CHAIN rather than against the
+ * wallet's reply. A wallet can mine a shield and then fail to return the hash to
+ * the dapp (a hung or dropped response). Watching the public balance fall — the
+ * tokens visibly leaving the account for the pool — proves the shield landed
+ * without needing that reply. Resolves true on the drop, false on timeout.
+ */
+async function waitForBalanceDrop(
+  owner: string,
+  token: Token,
+  before: bigint,
+  atLeast: bigint,
+  ms = 45_000,
+): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      const bal = await fetchBalances(CONFIG.rpcUrl, owner, [token]);
+      const now = bal[token.address];
+      if (now !== undefined && before - now >= atLeast) return true;
+    } catch {
+      // Transient RPC error — keep polling until the deadline.
+    }
+  }
+  return false;
+}
+
 // Capability check that NEVER touches balances or keys: ask the wallet which
 // Wallet-API versions it supports. The STRK20 methods ship in wallet API
 // >= 0.10.3 (Ready, Xverse) — the same probe AVNU documents. Wallets predating
@@ -97,16 +128,22 @@ async function walletSupportsStrk20(
 
 export type TxKind = "PUBLIC TIP" | "SHIELD" | "PRIVATE SWAP" | "PRIVATE TIP";
 
+let logSeq = 0;
+/** A client id for a log row, assigned before the tx is even sent. */
+const nextLogId = () => `tx-${(logSeq += 1)}`;
+
 export function useTipJar(opts?: {
-  /** Called as soon as a transaction is submitted, before confirmation. */
-  onTx?: (kind: TxKind, hash: string, detail?: string) => void;
-  /** Called once the outcome is known — a tx can be accepted yet REVERT. */
-  onTxStatus?: (hash: string, status: TxStatus) => void;
+  /**
+   * Create-or-patch a log row, addressed by `id`. Called first at submit time
+   * (status "pending", no hash) so the row appears immediately, then again to
+   * fill in the hash and final status. Decoupling the row from the hash is what
+   * keeps a transaction visible even when the wallet never returns its hash.
+   */
+  onLog?: (patch: LogPatch) => void;
 }) {
-  const onTxRef = useRef(opts?.onTx);
-  onTxRef.current = opts?.onTx;
-  const onTxStatusRef = useRef(opts?.onTxStatus);
-  onTxStatusRef.current = opts?.onTxStatus;
+  const onLogRef = useRef(opts?.onLog);
+  onLogRef.current = opts?.onLog;
+  const log = useCallback((patch: LogPatch) => onLogRef.current?.(patch), []);
   const [account, setAccount] = useState<WalletAccountV6 | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [privacySupported, setPrivacySupported] = useState(false);
@@ -285,6 +322,8 @@ export function useTipJar(opts?: {
       submittingRef.current = true;
       setError(null);
       setTxPending(true);
+      const id = nextLogId();
+      log({ id, kind: "PUBLIC TIP", detail: `${amountStrk} STRK`, status: "pending", time: Date.now() });
       try {
         const amount = parseStrk(amountStrk);
         const calls = buildTipCalls(
@@ -293,12 +332,13 @@ export function useTipJar(opts?: {
           amount,
         );
         const { transaction_hash } = await account.execute(calls);
-        onTxRef.current?.("PUBLIC TIP", transaction_hash, `${amountStrk} STRK`);
-        onTxStatusRef.current?.(transaction_hash, await settle(transaction_hash));
+        log({ id, hash: transaction_hash });
+        log({ id, status: await settle(transaction_hash) });
         await refresh();
         void refreshPublicBalance(account.address);
         return transaction_hash;
       } catch (e) {
+        log({ id, status: "reverted" });
         setError(friendlyError(e));
         throw e;
       } finally {
@@ -306,7 +346,7 @@ export function useTipJar(opts?: {
         setTxPending(false);
       }
     },
-    [account, refresh, refreshPublicBalance],
+    [account, refresh, refreshPublicBalance, log],
   );
 
   // SHIELD: deposit public STRK into the pool, as its own transaction.
@@ -328,19 +368,86 @@ export function useTipJar(opts?: {
       submittingRef.current = true;
       setError(null);
       setTxPending(true);
+
+      // Log the row NOW, before sending — so the shield is visible even if the
+      // wallet never returns its hash.
+      const id = nextLogId();
+      const detail = `${amountStr} ${token.symbol}`;
+      log({ id, kind: "SHIELD", detail, status: "pending", time: Date.now() });
+
+      const anchorMaturity = async () => {
+        const head = await provider.getBlockNumber().catch(() => null);
+        if (head !== null) {
+          setShieldedAtBlock(head);
+          setCurrentBlock(head);
+        }
+      };
+
       try {
         const amount = parseUnits(amountStr, token.decimals);
+        const balances = await fetchBalances(CONFIG.rpcUrl, account.address, [
+          token,
+        ]).catch((): Record<string, bigint> => ({}));
+        const before = balances[token.address] ?? null;
+
         const actions = buildShieldActions(token.address, amount);
-        const { transaction_hash } =
-          await account.strk20InvokeTransaction(actions);
-        onTxRef.current?.("SHIELD", transaction_hash, `${amountStr} ${token.symbol}`);
-        onTxStatusRef.current?.(transaction_hash, await settle(transaction_hash));
-        // Anchor the maturity countdown at the block the shield landed in.
-        const head = await provider.getBlockNumber();
-        setShieldedAtBlock(head);
-        setCurrentBlock(head);
-        void refreshPublicBalance(account.address);
-        return transaction_hash;
+        const walletCall = account.strk20InvokeTransaction(actions);
+
+        // Confirm the shield against whichever proves it first: the wallet's
+        // reply, or the tokens visibly leaving the public account on-chain.
+        //
+        // A wallet ERROR must NOT win this race. The failure we are fixing is a
+        // wallet that mines the shield and then reports a network error anyway —
+        // concluding "failed" on that error would be exactly wrong. So a wallet
+        // error is captured and only consulted if the chain also shows no drop.
+        type Outcome = { hash: string } | { chain: boolean };
+        let walletErr: unknown;
+        const walletHash: Promise<Outcome> = walletCall.then(
+          (r) => ({ hash: r.transaction_hash }),
+          (err) => {
+            walletErr = err;
+            return new Promise<Outcome>(() => {}); // an error never wins
+          },
+        );
+        const chain: Promise<Outcome> =
+          before === null
+            ? new Promise<Outcome>((resolve) =>
+                setTimeout(() => resolve({ chain: false }), 45_000),
+              )
+            : waitForBalanceDrop(
+                account.address,
+                token,
+                before,
+                (amount * 9n) / 10n,
+              ).then((dropped) => ({ chain: dropped }));
+
+        const outcome = await Promise.race<Outcome>([walletHash, chain]);
+
+        if ("hash" in outcome) {
+          log({ id, hash: outcome.hash });
+          log({ id, status: await settle(outcome.hash) });
+          await anchorMaturity();
+          void refreshPublicBalance(account.address);
+          return outcome.hash;
+        }
+
+        if (outcome.chain) {
+          // The shield landed on-chain but the wallet was slow or errored.
+          // Proceed now; backfill the hash if the wallet ever answers.
+          log({ id, status: "ok", detail: `${detail} — confirm in wallet` });
+          await anchorMaturity();
+          void refreshPublicBalance(account.address);
+          walletCall
+            .then((r) => log({ id, hash: r.transaction_hash, detail }))
+            .catch(() => {});
+          return undefined;
+        }
+
+        // No hash and no on-chain drop within the window: a real failure.
+        log({ id, status: "reverted" });
+        const err = walletErr ?? new Error("shield not confirmed");
+        setError(friendlyError(err));
+        throw err;
       } catch (e) {
         setError(friendlyError(e));
         throw e;
@@ -349,7 +456,7 @@ export function useTipJar(opts?: {
         setTxPending(false);
       }
     },
-    [account, privacySupported, refreshPublicBalance],
+    [account, privacySupported, refreshPublicBalance, log],
   );
 
   // PRIVATE SWAP: trade a shielded token for shielded STRK, via AVNU.
@@ -378,6 +485,8 @@ export function useTipJar(opts?: {
       submittingRef.current = true;
       setError(null);
       setTxPending(true);
+      const id = nextLogId();
+      log({ id, kind: "PRIVATE SWAP", detail: `${amountStr} ${token.symbol} → STRK`, status: "pending", time: Date.now() });
       try {
         const sellAmount = parseUnits(amountStr, token.decimals);
         const [quote] = await getQuotes({
@@ -405,13 +514,9 @@ export function useTipJar(opts?: {
           // talks to AVNU directly using the key above.
           { paymasterBaseUrl: CONFIG.avnuPaymasterBaseUrl },
         );
-        onTxRef.current?.(
-          "PRIVATE SWAP",
-          transactionHash,
-          `${amountStr} ${token.symbol} → STRK`,
-        );
+        log({ id, hash: transactionHash });
         const status = await settle(transactionHash);
-        onTxStatusRef.current?.(transactionHash, status);
+        log({ id, status });
         // A swap credits a NEW note, which is subject to the same ~10-block
         // maturity as a shield. Re-anchor the countdown, otherwise tipping
         // straight after a swap spends an immature note and the transaction
@@ -423,6 +528,7 @@ export function useTipJar(opts?: {
         }
         return transactionHash;
       } catch (e) {
+        log({ id, status: "reverted" });
         setError(friendlyError(e));
         throw e;
       } finally {
@@ -430,7 +536,7 @@ export function useTipJar(opts?: {
         setTxPending(false);
       }
     },
-    [account, privacySupported],
+    [account, privacySupported, log],
   );
 
   // PRIVATE tip: a transfer-only action spending funds ALREADY shielded.
@@ -466,6 +572,8 @@ export function useTipJar(opts?: {
       submittingRef.current = true;
       setError(null);
       setTxPending(true);
+      const id = nextLogId();
+      log({ id, kind: "PRIVATE TIP", detail: `${amountStrk} STRK`, status: "pending", time: Date.now() });
       try {
         const actions = buildPrivateTipActions(
           CONFIG.strkAddress,
@@ -474,12 +582,13 @@ export function useTipJar(opts?: {
         );
         const { transaction_hash } =
           await account.strk20InvokeTransaction(actions);
-        onTxRef.current?.("PRIVATE TIP", transaction_hash, `${amountStrk} STRK`);
-        onTxStatusRef.current?.(transaction_hash, await settle(transaction_hash));
+        log({ id, hash: transaction_hash });
+        log({ id, status: await settle(transaction_hash) });
         // No refresh(): a private tip emits no public event, so there is
         // nothing for the public wall to pick up — by design.
         return transaction_hash;
       } catch (e) {
+        log({ id, status: "reverted" });
         setError(friendlyError(e));
         throw e;
       } finally {
@@ -487,7 +596,7 @@ export function useTipJar(opts?: {
         setTxPending(false);
       }
     },
-    [account, privacySupported, shieldedBalances],
+    [account, privacySupported, shieldedBalances, log],
   );
 
   useEffect(() => {

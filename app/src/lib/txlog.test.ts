@@ -1,70 +1,84 @@
 import { describe, expect, it } from "vitest";
-import { addSessionTx, mergeLog, type LogEntry } from "./txlog";
+import { mergeLog, upsertTx, type LogEntry } from "./txlog";
 
-const entry = (over: Partial<LogEntry>): LogEntry => ({
-  kind: "PUBLIC TIP",
-  hash: "0x0",
+const row = (over: Partial<LogEntry> & { id: string }): LogEntry => ({
+  kind: "SHIELD",
   time: 0,
   ...over,
 });
 
-describe("mergeLog", () => {
-  it("produces a unique hash per row (the duplicate-key bug)", () => {
-    // A public tip made this session is in BOTH the session list and, after a
-    // refresh, the on-chain tips. Same hash in both. Before the fix this
-    // yielded two rows with key=0xabc — duplicate React keys, and a row that
-    // could render collapsed/invisible.
-    const session = [entry({ hash: "0xabc", session: true, status: "ok" })];
-    const chain = [entry({ hash: "0xabc" }), entry({ hash: "0xold" })];
-
-    const merged = mergeLog(session, chain);
-
-    const hashes = merged.map((e) => e.hash);
-    expect(hashes).toEqual(["0xabc", "0xold"]);
-    expect(new Set(hashes).size).toBe(hashes.length); // no duplicate keys
+describe("upsertTx", () => {
+  it("creates a row the moment a tx is submitted — before any hash", () => {
+    const s = upsertTx([], { id: "a", kind: "SHIELD", status: "pending" });
+    expect(s).toHaveLength(1);
+    expect(s[0].hash).toBeUndefined();
+    expect(s[0].status).toBe("pending");
   });
 
-  it("keeps the session copy on overlap — it has the status and highlight", () => {
-    const session = [entry({ hash: "0xabc", session: true, status: "ok" })];
-    const chain = [entry({ hash: "0xabc" })];
-
-    const [row] = mergeLog(session, chain);
-
-    expect(row.session).toBe(true);
-    expect(row.status).toBe("ok");
+  it("patches the same row with its hash later, without duplicating it", () => {
+    let s = upsertTx([], { id: "a", kind: "SHIELD", status: "pending" });
+    s = upsertTx(s, { id: "a", hash: "0xabc", status: "ok" });
+    expect(s).toHaveLength(1);
+    expect(s[0]).toMatchObject({ id: "a", hash: "0xabc", status: "ok" });
   });
 
-  it("keeps every distinct transaction", () => {
-    const session = [
-      entry({ hash: "0x3", kind: "PRIVATE TIP" }),
-      entry({ hash: "0x2", kind: "PRIVATE SWAP" }),
-      entry({ hash: "0x1", kind: "SHIELD" }),
-    ];
-    const merged = mergeLog(session, []);
-    expect(merged.map((e) => e.hash)).toEqual(["0x3", "0x2", "0x1"]);
+  it("keeps distinct transactions distinct, newest first", () => {
+    let s = upsertTx([], { id: "a", kind: "SHIELD" });
+    s = upsertTx(s, { id: "b", kind: "PRIVATE TIP" });
+    expect(s.map((e) => e.id)).toEqual(["b", "a"]);
+  });
+
+  // The failure this whole model exists to prevent: a successful tx whose hash
+  // never came back must still be a visible row.
+  it("a hash-less row survives — a missing hash never drops it", () => {
+    let s = upsertTx([], { id: "a", kind: "SHIELD", status: "ok" });
+    s = upsertTx(s, { id: "b", kind: "SHIELD", status: "ok" }); // also hash-less
+    expect(s).toHaveLength(2);
+  });
+
+  // The reported bug, end to end: shield submitted (pending row), the wallet
+  // never returns a hash, but the chain confirms the drop → the row flips to a
+  // visible, successful SHIELD with no hash. One row throughout, never lost.
+  it("shield confirmed by chain with no wallet hash → one visible ok row", () => {
+    let s = upsertTx([], {
+      id: "shield-1",
+      kind: "SHIELD",
+      detail: "5 STRK",
+      status: "pending",
+    });
+    s = upsertTx(s, {
+      id: "shield-1",
+      status: "ok",
+      detail: "5 STRK — confirm in wallet",
+    });
+    expect(s).toHaveLength(1);
+    expect(s[0]).toMatchObject({ kind: "SHIELD", status: "ok" });
+    expect(s[0].hash).toBeUndefined();
   });
 });
 
-describe("addSessionTx", () => {
-  it("dedupes a repeated hash (a re-render or double-fire)", () => {
-    const s = addSessionTx([], entry({ hash: "0xabc" }));
-    expect(addSessionTx(s, entry({ hash: "0xabc" }))).toHaveLength(1);
+describe("mergeLog", () => {
+  it("drops a chain tip whose hash a session row already carries", () => {
+    const session = [row({ id: "a", kind: "PUBLIC TIP", hash: "0xabc", session: true })];
+    const chain = [
+      { kind: "PUBLIC TIP", time: 0, hash: "0xabc" },
+      { kind: "PUBLIC TIP", time: 0, hash: "0xold" },
+    ];
+    const merged = mergeLog(session, chain);
+    const hashes = merged.map((e) => e.hash);
+    expect(hashes).toEqual(["0xabc", "0xold"]);
+    expect(new Set(merged.map((e) => e.id)).size).toBe(merged.length); // unique keys
   });
 
-  it("prepends — newest first", () => {
-    let s: LogEntry[] = [];
-    s = addSessionTx(s, entry({ hash: "0x1" }));
-    s = addSessionTx(s, entry({ hash: "0x2" }));
-    expect(s.map((e) => e.hash)).toEqual(["0x2", "0x1"]);
+  it("keeps a session row that has no hash yet alongside chain tips", () => {
+    const session = [row({ id: "pending-shield", kind: "SHIELD", status: "pending" })];
+    const chain = [{ kind: "PUBLIC TIP", time: 0, hash: "0xold" }];
+    const merged = mergeLog(session, chain);
+    expect(merged.map((e) => e.id)).toEqual(["pending-shield", "0xold"]);
   });
 
-  // The trap this guards against: two DIFFERENT transactions both arriving with
-  // a falsy hash must not collapse into one. `some(e => e.hash === undefined)`
-  // would have dropped the second — silently losing a real transaction.
-  it("never collapses two hash-less transactions into one", () => {
-    let s = addSessionTx([], entry({ hash: "", kind: "SHIELD" }));
-    s = addSessionTx(s, entry({ hash: "", kind: "PRIVATE TIP" }));
-    expect(s).toHaveLength(2);
-    expect(s.map((e) => e.kind)).toEqual(["PRIVATE TIP", "SHIELD"]);
+  it("gives chain tips a stable id derived from their hash", () => {
+    const merged = mergeLog([], [{ kind: "PUBLIC TIP", time: 0, hash: "0xold" }]);
+    expect(merged[0].id).toBe("0xold");
   });
 });

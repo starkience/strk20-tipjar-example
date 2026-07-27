@@ -8,7 +8,7 @@ import { Stepper } from "./components/Stepper";
 import { TipForm } from "./components/TipForm";
 import { TipWall } from "./components/TipWall";
 import { TxLog } from "./components/TxLog";
-import { addSessionTx, mergeLog, type LogEntry } from "./lib/txlog";
+import { mergeLog, upsertTx, type LogEntry } from "./lib/txlog";
 import { COIN_SVG } from "./lib/pixelArt";
 import { formatDisplay } from "./lib/tipjar";
 import type { Token } from "./config";
@@ -21,21 +21,10 @@ export default function App() {
   // Log the moment a transaction is submitted, so the panel fills immediately
   // rather than after confirmation.
   const jar = useTipJar({
-    onTx: (kind, hash, detail) =>
-      setSession((s) =>
-        addSessionTx(s, {
-          kind,
-          hash,
-          time: Date.now(),
-          detail,
-          session: true,
-          status: "pending",
-        }),
-      ),
-    onTxStatus: (hash, status) =>
-      setSession((s) =>
-        s.map((e) => (e.hash === hash ? { ...e, status } : e)),
-      ),
+    // Create-or-patch a session row by id. The row is created at submit time
+    // (pending, no hash) and patched with its hash and final status as those
+    // arrive — so a transaction is visible even if its hash never comes back.
+    onLog: (patch) => setSession((s) => upsertTx(s, { session: true, ...patch })),
   });
   const { connected } = useConnect();
   const tipButtonRef = useRef<HTMLButtonElement>(null);

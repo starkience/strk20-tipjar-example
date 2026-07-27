@@ -1,19 +1,29 @@
 // TX-log data model and merge.
 //
-// The panel shows two sources: transactions made in THIS session (shield, swap,
-// private tip, public tip — added optimistically the moment they are submitted)
-// and public tips already on-chain (read from `Tipped` events). These overlap:
-// a public tip made this session is in BOTH lists, under the same hash.
+// The panel shows two sources: transactions started in THIS session and public
+// tips already on-chain (from `Tipped` events). Two hard-won lessons shape this
+// model:
 //
-// `mergeLog` is the single place that reconciles them. It must guarantee one
-// entry per hash, because the panel renders `key={hash}` — duplicate keys make
-// React's reconciliation unreliable, and this list animates rows imperatively
-// (height/opacity), so a duplicate key can leave a real row collapsed and
-// invisible. That is the "some transactions aren't showing up" bug this fixes.
+//  1. A row must be able to exist BEFORE its hash does. A wallet can mine a
+//     transaction and then fail to return the hash to the dapp (a dropped or
+//     hung response over the wallet channel). If logging waited for the hash,
+//     that successful transaction would never appear — which is exactly the
+//     "some transactions aren't showing up" bug. So every session row is
+//     identified by a client `id` assigned at submit time; the `hash` is filled
+//     in later, if and when it arrives.
+//
+//  2. One row per hash on screen. A public tip made this session is in both the
+//     session list and, after a refresh, the on-chain tips. The panel renders
+//     keyed rows, and duplicate keys render unreliably (a row can end up
+//     collapsed/invisible), so `mergeLog` drops any chain tip whose hash a
+//     session row already carries.
 
 export type LogEntry = {
+  /** Client id, assigned at submit time. Stable across hash/status patches. */
+  id: string;
   kind: string;
-  hash: string;
+  /** Filled in once the wallet returns it — may lag the row, or never arrive. */
+  hash?: string;
   time: number;
   detail?: string;
   /** Made in this session — highlighted so it stands out from chain history. */
@@ -22,34 +32,39 @@ export type LogEntry = {
   status?: "pending" | "ok" | "reverted";
 };
 
+/** A create-or-patch for a session row, addressed by `id`. */
+export type LogPatch = Partial<LogEntry> & { id: string };
+
 /**
- * Merge session entries with on-chain public tips into one list with a unique
- * hash per row. Session entries win on overlap: they carry the live status and
- * the this-session highlight, and they are what the user just watched happen.
- *
- * Order is preserved: session entries (newest first) then chain-only tips.
+ * Upsert a session row by id: create it (newest first) if unseen, otherwise
+ * merge the patch onto the existing row. This is what lets a row appear the
+ * moment a transaction is submitted and gain its hash/status afterwards.
  */
-export function mergeLog(
-  session: LogEntry[],
-  chainTips: LogEntry[],
-): LogEntry[] {
-  const seen = new Set<string>();
-  const out: LogEntry[] = [];
-  for (const e of [...session, ...chainTips]) {
-    if (seen.has(e.hash)) continue;
-    seen.add(e.hash);
-    out.push(e);
+export function upsertTx(session: LogEntry[], patch: LogPatch): LogEntry[] {
+  const i = session.findIndex((e) => e.id === patch.id);
+  if (i === -1) {
+    return [{ time: 0, kind: "", ...patch } as LogEntry, ...session];
   }
-  return out;
+  const next = session.slice();
+  next[i] = { ...next[i], ...patch };
+  return next;
 }
 
 /**
- * Add a just-submitted transaction to the session list. Deduped by hash so a
- * re-render or a double-fire cannot add the same row twice — but NEVER collapse
- * two genuinely different transactions that happen to lack a hash: an entry with
- * no hash is always kept, since a missing hash is not evidence of sameness.
+ * Merge session rows with on-chain public tips. Session rows come first (newest
+ * first); a chain tip is dropped when a session row already carries its hash, so
+ * the same transaction never renders twice. Chain tips always have a hash;
+ * session rows may not yet, and are never dropped for lacking one.
  */
-export function addSessionTx(session: LogEntry[], entry: LogEntry): LogEntry[] {
-  if (entry.hash && session.some((e) => e.hash === entry.hash)) return session;
-  return [entry, ...session];
+export function mergeLog(
+  session: LogEntry[],
+  chainTips: Array<Omit<LogEntry, "id"> & { hash: string }>,
+): LogEntry[] {
+  const sessionHashes = new Set(
+    session.filter((e) => e.hash).map((e) => e.hash),
+  );
+  const chainOnly = chainTips
+    .filter((t) => !sessionHashes.has(t.hash))
+    .map((t) => ({ ...t, id: t.hash }));
+  return [...session, ...chainOnly];
 }

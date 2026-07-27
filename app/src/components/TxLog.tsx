@@ -41,11 +41,11 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
   // clearProps strips the inline height/opacity GSAP applies, so a row can never
   // be left collapsed or invisible if the animation is interrupted mid-flight —
   // which is how transactions "stopped showing up".
-  const topHash = props.entries[0]?.hash;
+  const topId = props.entries[0]?.id;
   useGSAP(
     () => {
       const first = listRef.current?.firstElementChild;
-      if (!first || !topHash) return;
+      if (!first || !topId) return;
       gsap
         .timeline()
         .from(first, {
@@ -73,7 +73,7 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
           "-=0.18",
         );
     },
-    { dependencies: [topHash], scope: listRef },
+    { dependencies: [topId], scope: listRef },
   );
 
   return (
@@ -88,7 +88,7 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
       <ul className="txlog__list" ref={listRef}>
         {props.entries.map((e) => (
           <li
-            key={e.hash}
+            key={e.id}
             className={`txlog__row ${e.session ? "is-session" : ""} ${
               e.status === "reverted" ? "is-reverted" : ""
             }`}
@@ -103,14 +103,22 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
               )}
             </span>
             {e.detail && <span className="txlog__detail">{e.detail}</span>}
-            <a
-              className="txlog__hash"
-              href={`https://voyager.online/tx/${e.hash}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {e.hash.slice(0, 10)}…
-            </a>
+            {e.hash ? (
+              <a
+                className="txlog__hash"
+                href={`https://voyager.online/tx/${e.hash}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {e.hash.slice(0, 10)}…
+              </a>
+            ) : (
+              // No hash yet: the wallet hasn't returned one. The row still
+              // stands so the transaction is never invisible.
+              <span className="txlog__hash txlog__hash--nolink">
+                {e.status === "pending" ? "submitting…" : "no tx hash"}
+              </span>
+            )}
           </li>
         ))}
         {props.entries.length === 0 && <li className="txlog__empty">—</li>}

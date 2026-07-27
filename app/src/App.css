@@ -632,6 +632,12 @@
   color: var(--ink);
   background: var(--gold-lit);
 }
+.txlog__hash--nolink {
+  color: var(--ink);
+  opacity: 0.5;
+  font-family: var(--display);
+  font-size: 9px;
+}
 .txlog__empty {
   font-family: var(--display);
   font-size: 10px;
