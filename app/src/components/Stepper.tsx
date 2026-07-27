@@ -203,7 +203,7 @@ export function Stepper(props: {
               NEEDS AN APPROVAL FIRST — TWO PROMPTS ·{" "}
             </span>
           )}
-          {`PLUS A POOL FEE (~${POOL_FEE_LABEL} STRK, CONVERTED FOR OTHER TOKENS) — YOUR WALLET SHOWS THE EXACT SPLIT`}
+          {`PLUS A POOL FEE (~${POOL_FEE_LABEL} STRK, CONVERTED FOR OTHER TOKENS)`}
         </p>
       </Step>
 
