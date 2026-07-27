@@ -751,3 +751,10 @@
 .step__summary .step__fee {
   font-size: 9px;
 }
+
+/* Net-shielded preview */
+.step__net {
+  font-family: var(--display);
+  font-size: 11px;
+  color: var(--ink);
+}

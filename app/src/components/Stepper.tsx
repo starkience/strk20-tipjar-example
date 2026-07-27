@@ -15,7 +15,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { POOL_FEE_STRK, STRK, type Token } from "../config";
 import { sameAddress } from "../lib/address";
-import { formatDisplay, toInputAmount } from "../lib/tipjar";
+import { formatDisplay, parseUnits, toInputAmount } from "../lib/tipjar";
 import { TokenSelect } from "./TokenSelect";
 import { Pills } from "./Pills";
 
@@ -146,6 +146,21 @@ export function Stepper(props: {
   const subject = lastShielded ?? token;
   const shieldedOf = (t: Token) => props.shieldedBalances?.[t.address];
 
+  // The pool fee is denominated in STRK. Shielding STRK therefore nets out to
+  // less than you typed; shielding any other token pays the fee separately, so
+  // the full amount lands. Preview it rather than let the wallet surprise them.
+  const netShielded = (amountStr: string, t: Token): string | null => {
+    try {
+      const raw = parseUnits(amountStr, t.decimals);
+      if (!sameAddress(t.address, STRK.address)) return null;
+      const net = raw - POOL_FEE_STRK;
+      return formatDisplay(net > 0n ? net : 0n, t.decimals);
+    } catch {
+      return null;
+    }
+  };
+  const shieldPreview = netShielded(shieldAmount, token);
+
   const s1: StepState = shieldedNow ? "done" : "active";
   const s2: StepState = checked ? "done" : "active";
   const s3: StepState = maturing ? "active" : shieldedNow ? "done" : "locked";
@@ -167,8 +182,9 @@ export function Stepper(props: {
         summary={
           lastShieldedAmount ? (
             <>
-              {lastShieldedAmount} {subject.symbol}
-              <span className="step__fee"> +{POOL_FEE_LABEL} FEE</span>
+              {netShielded(lastShieldedAmount, subject) ?? lastShieldedAmount}{" "}
+              {subject.symbol}
+              <span className="step__fee"> −{POOL_FEE_LABEL} FEE</span>
             </>
           ) : undefined
         }
@@ -218,8 +234,13 @@ export function Stepper(props: {
           onPick={setShieldAmount}
         />
         <div className="step__note">
-          <span className="step__note-label">POOL FEE</span>
-          <span className="step__fee">{POOL_FEE_LABEL} STRK</span>
+          <span className="step__note-label">YOU SHIELD</span>
+          <span className="step__net">
+            {shieldPreview ?? shieldAmount} {token.symbol}
+          </span>
+          <span className="step__fee">−{POOL_FEE_LABEL} STRK FEE</span>
+        </div>
+        <div className="step__note">
           <span className="step__note-label">PUBLIC</span>
           {balance !== undefined ? (
             <button
