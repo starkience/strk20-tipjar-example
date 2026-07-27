@@ -289,7 +289,10 @@
   gap: 12px;
 }
 
-/* ---- Stepper (private flow) ------------------------------------------ */
+/* ---- Stepper (private flow) ------------------------------------------
+   Hierarchy: the active step carries full controls and an inked rule; done
+   steps collapse to one summary line (clickable to reopen); locked steps are a
+   dimmed label. Actions share one right-hand column so they read as a rhythm. */
 .stepper {
   list-style: none;
   margin: 0;
@@ -300,20 +303,19 @@
 
 .step {
   display: grid;
-  grid-template-columns: 28px 1fr;
+  grid-template-columns: 26px 1fr;
   gap: 12px;
-  padding-bottom: 16px;
+  padding-bottom: 14px;
   position: relative;
 }
-/* connector line between badges */
 .step:last-child {
   padding-bottom: 0;
 }
 .step:not(:last-child)::before {
   content: "";
   position: absolute;
-  left: 13px;
-  top: 30px;
+  left: 12px;
+  top: 28px;
   bottom: 2px;
   width: 3px;
   background: var(--ink);
@@ -327,12 +329,12 @@
 }
 
 .step__badge {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border: 3px solid var(--ink);
   background: var(--paper);
   font-family: var(--display);
-  font-size: 10px;
+  font-size: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -349,33 +351,75 @@
 .step__body {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 8px;
   min-width: 0;
+}
+
+/* Label row — carries the collapsed summary when the step is finished */
+.step__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 26px;
+  padding-top: 6px;
+}
+.step__head.is-clickable {
+  cursor: pointer;
+}
+.step__head.is-clickable:hover .step__label {
+  color: var(--gold-dark);
 }
 .step__label {
   font-family: var(--display);
   font-size: 10px;
   color: var(--ink);
-  padding-top: 7px;
 }
 .step--locked .step__label {
-  opacity: 0.4;
+  opacity: 0.35;
 }
+.step--done:not(.is-open) .step__label {
+  opacity: 0.6;
+}
+.step__summary {
+  font-family: var(--display);
+  font-size: 10px;
+  color: var(--gold-dark);
+  white-space: nowrap;
+}
+
+/* Control rows */
 .step__row {
   display: flex;
   align-items: stretch;
   gap: 10px;
 }
-.step__meta {
-  font-family: var(--display);
-  font-size: 11px;
-  color: var(--gold-dark);
+/* one shared action column so every primary button lines up */
+.btn--act {
+  min-width: 104px;
+  flex: 0 0 auto;
+}
+.step__balances {
+  flex: 1;
   display: flex;
   align-items: center;
+  font-family: var(--display);
+  font-size: 12px;
+  color: var(--gold-dark);
 }
-/* Available public balance — click to fill the amount */
+
+/* Secondary line under a control (public balance) */
+.step__note {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.step__note-label {
+  font-family: var(--display);
+  font-size: 8px;
+  color: #8b8b93;
+}
 .step__max {
-  align-self: flex-start;
   font-family: var(--display);
   font-size: 9px;
   color: var(--gold-dark);
@@ -389,17 +433,28 @@
   color: var(--ink);
 }
 
+.step__arrow {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--gold-dark);
+  vertical-align: -1px;
+  margin: 0 2px;
+}
+
+.step__countline {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
 .step__count {
   font-family: var(--display);
-  font-size: 20px;
+  font-size: 18px;
   color: var(--ink);
 }
-.step--locked .step__count {
-  opacity: 0.4;
-}
-.step--locked .step__row {
-  opacity: 0.4;
-  pointer-events: none;
+.step__eta {
+  font-family: var(--display);
+  font-size: 9px;
+  color: #71717a;
 }
 
 /* ---- Error toast -----------------------------------------------------
@@ -626,40 +681,6 @@
   background: transparent;
 }
 
-/* Public balance readout under the shield row */
-.step__balance {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.step__balance-label {
-  font-family: var(--display);
-  font-size: 8px;
-  color: #71717a;
-  letter-spacing: 0.5px;
-}
-
-/* Block countdown + seconds ETA */
-.step__countline {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-.step__eta {
-  font-family: var(--display);
-  font-size: 9px;
-  color: #71717a;
-}
-
-/* Chunky arrow inside step labels */
-.step__arrow {
-  font-size: 15px;
-  line-height: 1;
-  color: var(--gold-dark);
-  vertical-align: -1px;
-  margin: 0 2px;
-}
-
 /* This session's transactions stand out from chain history */
 .txlog__row.is-session {
   background: var(--gold-lit);
@@ -675,16 +696,3 @@
   color: #1c4fd8;
 }
 
-/* Shielded balances list (step 2) */
-.step__balances {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  font-family: var(--display);
-  font-size: 11px;
-  color: var(--gold-dark);
-}
-.step__bal {
-  white-space: nowrap;
-}
