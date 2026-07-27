@@ -1,8 +1,10 @@
 # Adding STRK20 privacy — step by step (Part 2)
 
-> **Status: 🚧 in progress.** This is the running log of how STRK20 privacy is
-> added to the app, built **with the STRK20 agent skill**. It records the actual
-> commands, decisions, and gotchas so a developer can reproduce the process.
+> **Status: ✅ complete, verified on mainnet 2026-07-27.** This is the log of how
+> STRK20 privacy was added to the app, built **with the STRK20 agent skill**. It
+> records the actual commands, decisions and gotchas so a developer can
+> reproduce the process — including the corrections made along the way, since
+> those are the useful part.
 
 ## Goal
 
@@ -101,8 +103,8 @@ hidden-vs-visible table. Phases:
   - Verified headlessly: `npm run build` (typecheck) passes, `npm test` 6/6.
     (Non-fatal: a get-starknet transitive dep triggers a bundler `eval` advisory.)
   - **Manual check pending** — see below.
-- [x] **Phase 2 — "Tip privately" private transfer** ✅ built 2026-07-24
-      (live mainnet verification pending)
+- [x] **Phase 2 — "Tip privately" private transfer** ✅ 2026-07-24, verified on
+      mainnet 2026-07-27 (evidence below)
   - Added `sendPrivateTip` in `app/src/hooks/useTipJar.ts`: a batched
     **`deposit` + `transfer`** via `WalletAccountV6.strk20InvokeTransaction`.
     It shields exactly the tip amount from public STRK, then privately transfers
