@@ -25,7 +25,7 @@ mainnet; the transaction hashes are real.
 
 | | |
 | --- | --- |
-| Live demo | <https://app-chi-three-39.vercel.app> |
+| Live demo | <https://strk20-tipjar.vercel.app> |
 | Repo | <https://github.com/starkience/strk20-tipjar-example> |
 | Network | Starknet **mainnet** |
 | Integration route | **Starknet Wallet API** via `starknet.js` |

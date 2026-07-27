@@ -19,7 +19,7 @@ on-chain → privacy added with the agent skill, in **0 contract changes** — t
 how to design the UX around it. Everything else in this repo is the evidence
 behind it.
 
-**Try it live:** <https://app-chi-three-39.vercel.app>
+**Try it live:** <https://strk20-tipjar.vercel.app>
 
 ---
 
@@ -128,7 +128,7 @@ strk20-tipjar-example/
 
 | | |
 | --- | --- |
-| Live app | <https://app-chi-three-39.vercel.app> |
+| Live app | <https://strk20-tipjar.vercel.app> |
 | Network | Starknet **mainnet** |
 | TipJar contract | [`0x03ade0d0…b8a64f`](https://starkscan.co/contract/0x03ade0d029152e3b52188b5a32eac1f8b6f14d2fc3bdae1b94d9f6c545b8a64f) |
 | Class hash | `0x22ee61506d0c146e3eb2f4a6b3665bdc8cc349c45ed280ed690e6145003a039` |

@@ -32,7 +32,7 @@ Read TUTORIAL.md first if you want to understand the integration; read AGENTS.md
 
 ## Optional
 
-- [Live demo](https://app-chi-three-39.vercel.app): The app running on Starknet mainnet.
+- [Live demo](https://strk20-tipjar.vercel.app): The app running on Starknet mainnet.
 - [v1-public...v2-private](https://github.com/starkience/strk20-tipjar-example/compare/v1-public...v2-private): The entire integration as one diff.
 - [Tip Jar on STRK20 by Example](https://strk20-by-example.org/app/tip-jar.md): This example written up in the official docs.
 - [STRK20 agent skill](https://github.com/starkience/strk20-agent-skills): The skill that planned and built the integration.
