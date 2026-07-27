@@ -168,7 +168,16 @@ export default function App() {
             <TipWall total={jar.total} count={jar.count} />
           </div>
 
-          {jar.error && (
+          {jar.txPending && (
+            <div className="toast toast--pending">
+              <span>WAITING FOR WALLET…</span>
+              <button className="toast__action" onClick={jar.cancelPending}>
+                CANCEL
+              </button>
+            </div>
+          )}
+
+          {jar.error && !jar.txPending && (
             <button
               className="toast"
               onClick={jar.dismissError}

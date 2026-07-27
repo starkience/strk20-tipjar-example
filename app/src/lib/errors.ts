@@ -4,6 +4,8 @@
 
 const RULES: [RegExp, string][] = [
   [/user_refused|user rejected|rejected by user|declined/i, "REJECTED IN WALLET"],
+  // A prompt dismissed without a decision never settles — see withWalletTimeout.
+  [/wallet_no_response/i, "NO RESPONSE FROM WALLET — CHECK IT BEFORE RETRYING"],
   // Underscored protocol codes (INSUFFICIENT_PRIVATE_BALANCE) as well as prose.
   [/insufficient[_ ]?private/i, "NOT ENOUGH SHIELDED BALANCE"],
   [/insufficient|not enough/i, "NOT ENOUGH BALANCE"],

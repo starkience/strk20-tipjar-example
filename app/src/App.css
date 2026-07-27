@@ -758,3 +758,26 @@
   font-size: 11px;
   color: var(--ink);
 }
+
+/* Pending state — same overlay slot as the error, so neither reflows the frame */
+.toast--pending {
+  background: var(--ink);
+  color: var(--gold-lit);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: default;
+}
+.toast__action {
+  font-family: var(--display);
+  font-size: 9px;
+  color: var(--ink);
+  background: var(--gold);
+  border: 2px solid var(--gold-lit);
+  padding: 5px 9px;
+  cursor: pointer;
+}
+.toast__action:hover {
+  background: var(--gold-lit);
+}

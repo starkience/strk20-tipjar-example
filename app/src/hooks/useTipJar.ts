@@ -41,6 +41,25 @@ const provider = new RpcProvider({ nodeUrl: CONFIG.rpcUrl });
  * transactions can take a while to become visible to our RPC, and a hung await
  * would leave buttons disabled with no feedback.
  */
+/**
+ * Bound a wallet request. A prompt that is dismissed without approving or
+ * rejecting never settles its promise, which would otherwise leave `txPending`
+ * true forever — every button disabled with no way back short of a reload.
+ * Releasing the UI is the lesser evil, but the transaction may still be live,
+ * so the message tells the user to check their wallet before retrying.
+ */
+function withWalletTimeout<T>(p: Promise<T>, ms = 120_000): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("WALLET_NO_RESPONSE")),
+        ms,
+      ),
+    ),
+  ]);
+}
+
 async function settle(hash: string, ms = 60_000): Promise<void> {
   try {
     await Promise.race([
@@ -147,6 +166,15 @@ export function useTipJar(opts?: {
 
   const dismissError = useCallback(() => setError(null), []);
 
+  // Manual escape hatch for a wallet prompt that never comes back. This only
+  // releases the UI — it cannot cancel a request the wallet may still be
+  // holding, so warn rather than pretend the operation was stopped.
+  const cancelPending = useCallback(() => {
+    submittingRef.current = false;
+    setTxPending(false);
+    setError("STOPPED WAITING — CHECK YOUR WALLET BEFORE RETRYING");
+  }, []);
+
   // Called when the modal reports a disconnect.
   const clearWallet = useCallback(() => {
     setAccount(null);
@@ -236,7 +264,9 @@ export function useTipJar(opts?: {
           CONFIG.tipJarAddress,
           amount,
         );
-        const { transaction_hash } = await account.execute(calls);
+        const { transaction_hash } = await withWalletTimeout(
+          account.execute(calls),
+        );
         onTxRef.current?.("PUBLIC TIP", transaction_hash, `${amountStrk} STRK`);
         await settle(transaction_hash);
         await refresh();
@@ -281,8 +311,9 @@ export function useTipJar(opts?: {
             amount: `0x${amount.toString(16)}`,
           },
         ];
-        const { transaction_hash } =
-          await account.strk20InvokeTransaction(actions);
+        const { transaction_hash } = await withWalletTimeout(
+          account.strk20InvokeTransaction(actions),
+        );
         onTxRef.current?.("SHIELD", transaction_hash, `${amountStr} ${token.symbol}`);
         await settle(transaction_hash);
         // Anchor the maturity countdown at the block the shield landed in.
@@ -340,7 +371,8 @@ export function useTipJar(opts?: {
         });
         if (!quote) throw new Error("no route found for this pair");
 
-        const { transactionHash } = await executePrivateSwap({
+        const { transactionHash } = await withWalletTimeout(
+          executePrivateSwap({
           quote,
           slippage: 0.05,
           takerAddress: account.address,
@@ -348,7 +380,8 @@ export function useTipJar(opts?: {
           feeMode: { poolFeeToken: STRK.address },
           prover: createStrk20WalletProver(account),
           paymasterApiKey: CONFIG.avnuPaymasterApiKey || undefined,
-        });
+          }),
+        );
         onTxRef.current?.(
           "PRIVATE SWAP",
           transactionHash,
@@ -395,8 +428,9 @@ export function useTipJar(opts?: {
             recipient: CONFIG.ownerAddress,
           },
         ];
-        const { transaction_hash } =
-          await account.strk20InvokeTransaction(actions);
+        const { transaction_hash } = await withWalletTimeout(
+          account.strk20InvokeTransaction(actions),
+        );
         onTxRef.current?.("PRIVATE TIP", transaction_hash, `${amountStrk} STRK`);
         await settle(transaction_hash);
         // No refresh(): a private tip emits no public event, so there is
@@ -470,5 +504,6 @@ export function useTipJar(opts?: {
     txPending,
     error,
     dismissError,
+    cancelPending,
   };
 }
