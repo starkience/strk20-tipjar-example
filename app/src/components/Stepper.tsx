@@ -200,7 +200,8 @@ export function Stepper(props: {
         <p className="step__hint">
           {needsApproval && (
             <span className="step__fee">
-              NEEDS AN APPROVAL FIRST — TWO PROMPTS ·{" "}
+              A FIRST SHIELD = APPROVE + SHIELD: TWO WALLET PROMPTS, STILL ONE
+              SHIELD. CONFIRM BOTH — DON'T PRESS SHIELD AGAIN ·{" "}
             </span>
           )}
           {`PLUS A POOL FEE (~${POOL_FEE_LABEL} STRK, CONVERTED FOR OTHER TOKENS)`}

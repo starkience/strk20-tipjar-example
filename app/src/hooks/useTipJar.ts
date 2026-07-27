@@ -433,8 +433,9 @@ export function useTipJar(opts?: {
 
         if (outcome.chain) {
           // The shield landed on-chain but the wallet was slow or errored.
-          // Proceed now; backfill the hash if the wallet ever answers.
-          log({ id, status: "ok", detail: `${detail} — confirm in wallet` });
+          // Proceed now; backfill the hash if the wallet ever answers. The copy
+          // must NOT invite a re-shield — this branch re-enables the button.
+          log({ id, status: "ok", detail: `${detail} — done, don't re-shield` });
           await anchorMaturity();
           void refreshPublicBalance(account.address);
           walletCall
