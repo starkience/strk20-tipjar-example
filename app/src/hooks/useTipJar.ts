@@ -35,6 +35,22 @@ import {
 
 const provider = new RpcProvider({ nodeUrl: CONFIG.rpcUrl });
 
+/**
+ * Wait for confirmation, but never block the UI forever. Paymaster-relayed
+ * transactions can take a while to become visible to our RPC, and a hung await
+ * would leave buttons disabled with no feedback.
+ */
+async function settle(hash: string, ms = 60_000): Promise<void> {
+  try {
+    await Promise.race([
+      provider.waitForTransaction(hash),
+      new Promise((resolve) => setTimeout(resolve, ms)),
+    ]);
+  } catch {
+    // Treat a wait failure as "submitted"; the log links to the explorer.
+  }
+}
+
 /** Notes mature 10 blocks after creation — they cannot be spent before that. */
 export const MATURITY_BLOCKS = 10;
 
@@ -53,7 +69,14 @@ async function walletSupportsStrk20(
   }
 }
 
-export function useTipJar() {
+export type TxKind = "PUBLIC TIP" | "SHIELD" | "PRIVATE SWAP" | "PRIVATE TIP";
+
+export function useTipJar(opts?: {
+  /** Called as soon as a transaction is submitted, before confirmation. */
+  onTx?: (kind: TxKind, hash: string, detail?: string) => void;
+}) {
+  const onTxRef = useRef(opts?.onTx);
+  onTxRef.current = opts?.onTx;
   const [account, setAccount] = useState<WalletAccountV6 | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [privacySupported, setPrivacySupported] = useState(false);
@@ -211,7 +234,8 @@ export function useTipJar() {
           amount,
         );
         const { transaction_hash } = await account.execute(calls);
-        await provider.waitForTransaction(transaction_hash);
+        onTxRef.current?.("PUBLIC TIP", transaction_hash, `${amountStrk} STRK`);
+        await settle(transaction_hash);
         await refresh();
         void refreshPublicBalance(account.address);
         return transaction_hash;
@@ -256,7 +280,8 @@ export function useTipJar() {
         ];
         const { transaction_hash } =
           await account.strk20InvokeTransaction(actions);
-        await provider.waitForTransaction(transaction_hash);
+        onTxRef.current?.("SHIELD", transaction_hash, `${amountStr} ${token.symbol}`);
+        await settle(transaction_hash);
         // Anchor the maturity countdown at the block the shield landed in.
         const head = await provider.getBlockNumber();
         setShieldedAtBlock(head);
@@ -321,7 +346,12 @@ export function useTipJar() {
           prover: createStrk20WalletProver(account),
           paymasterApiKey: CONFIG.avnuPaymasterApiKey || undefined,
         });
-        await provider.waitForTransaction(transactionHash);
+        onTxRef.current?.(
+          "PRIVATE SWAP",
+          transactionHash,
+          `${amountStr} ${token.symbol} → STRK`,
+        );
+        await settle(transactionHash);
         void refreshShieldedIfShown();
         return transactionHash;
       } catch (e) {
@@ -364,7 +394,8 @@ export function useTipJar() {
         ];
         const { transaction_hash } =
           await account.strk20InvokeTransaction(actions);
-        await provider.waitForTransaction(transaction_hash);
+        onTxRef.current?.("PRIVATE TIP", transaction_hash, `${amountStrk} STRK`);
+        await settle(transaction_hash);
         // No refresh(): a private tip emits no public event, so there is
         // nothing for the public wall to pick up — by design.
         return transaction_hash;

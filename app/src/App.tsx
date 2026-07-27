@@ -16,17 +16,23 @@ import { launchCoinFlight } from "./lib/coinFlight";
 import "./App.css";
 
 export default function App() {
-  const jar = useTipJar();
+  const [session, setSession] = useState<LogEntry[]>([]);
+  // Log the moment a transaction is submitted, so the panel fills immediately
+  // rather than after confirmation.
+  const jar = useTipJar({
+    onTx: (kind, hash, detail) =>
+      setSession((s) =>
+        s.some((e) => e.hash === hash)
+          ? s
+          : [{ kind, hash, time: Date.now(), detail, session: true }, ...s],
+      ),
+  });
   const { connected } = useConnect();
   const tipButtonRef = useRef<HTMLButtonElement>(null);
   const coinTargetRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [showLog, setShowLog] = useState(true);
   const [mode, setMode] = useState<"public" | "private">("public");
-  // Transactions made in this session, newest first — the log fills as the
-  // stepper advances.
-  const [session, setSession] = useState<LogEntry[]>([]);
-
   const { selectWallet, clearWallet } = jar;
   useEffect(() => {
     if (connected) void selectWallet(connected);
@@ -55,12 +61,6 @@ export default function App() {
     { dependencies: [isPrivate], scope: stageRef },
   );
 
-  const log = (kind: string, hash: string, detail?: string) =>
-    setSession((s) => [
-      { kind, hash, time: Date.now(), detail, session: true },
-      ...s,
-    ]);
-
   const celebrate = () => {
     playCoinSound();
     launchCoinFlight(tipButtonRef.current, coinTargetRef.current);
@@ -69,7 +69,6 @@ export default function App() {
   const handlePublicTip = async (amount: string) => {
     const hash = await jar.sendTip(amount);
     if (!hash) return hash;
-    log("PUBLIC TIP", hash, `${amount} STRK`);
     celebrate();
     return hash;
   };
@@ -77,21 +76,18 @@ export default function App() {
   const handleShield = async (token: Token, amount: string) => {
     const hash = await jar.shield(token, amount);
     if (!hash) return hash;
-    log("SHIELD", hash, `${amount} ${token.symbol}`);
     return hash;
   };
 
   const handleSwap = async (token: Token, amount: string) => {
     const hash = await jar.privateSwapToStrk(token, amount);
     if (!hash) return hash;
-    log("PRIVATE SWAP", hash, `${amount} ${token.symbol} → STRK`);
     return hash;
   };
 
   const handlePrivateTip = async (amount: string) => {
     const hash = await jar.sendPrivateTip(amount);
     if (!hash) return hash;
-    log("PRIVATE TIP", hash, `${amount} STRK`);
     celebrate();
     return hash;
   };
