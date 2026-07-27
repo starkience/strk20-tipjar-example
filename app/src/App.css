@@ -609,3 +609,16 @@
 .txlog__list::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Public balance readout under the shield row */
+.step__balance {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.step__balance-label {
+  font-family: var(--display);
+  font-size: 8px;
+  color: #71717a;
+  letter-spacing: 0.5px;
+}

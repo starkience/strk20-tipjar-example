@@ -23,6 +23,7 @@ import {
   PRIVACY_POOL_ADDRESS,
 } from "@avnu/avnu-sdk";
 import { CONFIG, STRK, TOKENS, type Token } from "../config";
+import { fetchBalances, fetchTokens } from "../lib/tokens";
 import {
   buildTipCalls,
   parseStrk,
@@ -67,6 +68,8 @@ export function useTipJar() {
   const [publicBalances, setPublicBalances] = useState<Record<string, bigint>>(
     {},
   );
+  // Verified token list from AVNU (falls back to the built-in defaults).
+  const [tokens, setTokens] = useState<Token[]>(TOKENS);
   const [tips, setTips] = useState<TipEvent[]>([]);
   const [total, setTotal] = useState<bigint>(0n);
   const [count, setCount] = useState<number>(0);
@@ -77,25 +80,17 @@ export function useTipJar() {
   // through. A ref updates immediately and blocks that. Prevents double-shields.
   const submittingRef = useRef(false);
 
-  // Public balances for every supported token, over RPC. Public data — no
-  // wallet call, no consent prompt.
-  const refreshPublicBalance = useCallback(async (addr: string) => {
-    const entries = await Promise.all(
-      TOKENS.map(async (t) => {
-        try {
-          const [low, high] = await provider.callContract({
-            contractAddress: t.address,
-            entrypoint: "balanceOf",
-            calldata: [addr],
-          });
-          return [t.address, BigInt(low) + (BigInt(high) << 128n)] as const;
-        } catch {
-          return [t.address, 0n] as const;
-        }
-      }),
-    );
-    setPublicBalances(Object.fromEntries(entries));
-  }, []);
+  // Public balances for every listed token, in ONE batched RPC request.
+  const refreshPublicBalance = useCallback(
+    async (addr: string) => {
+      try {
+        setPublicBalances(await fetchBalances(CONFIG.rpcUrl, addr, tokens));
+      } catch {
+        // Non-fatal: amounts still work without a balance readout.
+      }
+    },
+    [tokens],
+  );
 
   // Attach to the wallet the user picked in the get-starknet modal: build a
   // WalletAccountV6 for sending, then check STRK20 capability.
@@ -337,6 +332,15 @@ export function useTipJar() {
     refresh();
   }, [refresh]);
 
+  // Load the verified token list once, then (re)read balances against it.
+  useEffect(() => {
+    void fetchTokens(TOKENS).then(setTokens);
+  }, []);
+
+  useEffect(() => {
+    if (address) void refreshPublicBalance(address);
+  }, [address, refreshPublicBalance]);
+
   // Poll the chain head while a shielded note is still maturing, so the
   // countdown advances. Stops once the note is spendable.
   useEffect(() => {
@@ -371,6 +375,7 @@ export function useTipJar() {
     privateSwapToStrk,
     blocksRemaining,
     publicBalances,
+    tokens,
     tips,
     total,
     count,

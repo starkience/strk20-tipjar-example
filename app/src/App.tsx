@@ -146,6 +146,7 @@ export default function App() {
                 pending={jar.txPending}
                 blocksRemaining={jar.blocksRemaining}
                 publicBalances={jar.publicBalances}
+                tokens={jar.tokens}
                 onShield={handleShield}
                 onSwap={handleSwap}
                 onTip={handlePrivateTip}

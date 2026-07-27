@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, type Ref } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { STRK, TOKENS, type Token } from "../config";
+import { STRK, type Token } from "../config";
 import { TokenSelect } from "./TokenSelect";
 import { formatUnits } from "../lib/tipjar";
 
@@ -53,6 +53,7 @@ export function Stepper(props: {
   pending: boolean;
   blocksRemaining: number | null;
   publicBalances: Record<string, bigint>;
+  tokens: Token[];
   onShield: (token: Token, amount: string) => Promise<unknown>;
   onSwap: (token: Token, amount: string) => Promise<unknown>;
   onTip: (amount: string) => Promise<unknown>;
@@ -65,8 +66,10 @@ export function Stepper(props: {
 
   // Only offer tokens the user actually holds. Before balances load (or if they
   // hold none) fall back to the full list so the control is never empty.
-  const held = TOKENS.filter((t) => (props.publicBalances[t.address] ?? 0n) > 0n);
-  const available = held.length > 0 ? held : TOKENS;
+  const held = props.tokens.filter(
+    (t) => (props.publicBalances[t.address] ?? 0n) > 0n,
+  );
+  const available = held.length > 0 ? held : props.tokens;
 
   // If the selected token isn't one they hold, move to the first that is.
   useEffect(() => {
@@ -118,15 +121,24 @@ export function Stepper(props: {
             SHIELD
           </button>
         </div>
-        {balance !== undefined && (
-          <button
-            className="step__max"
-            type="button"
-            onClick={() => setShieldAmount(formatUnits(balance, token.decimals))}
-          >
-            {formatUnits(balance, token.decimals)} {token.symbol}
-          </button>
-        )}
+        <div className="step__balance">
+          <span className="step__balance-label">PUBLIC BALANCE</span>
+          {balance !== undefined ? (
+            <button
+              className="step__max"
+              type="button"
+              onClick={() =>
+                setShieldAmount(formatUnits(balance, token.decimals))
+              }
+            >
+              {formatUnits(balance, token.decimals)} {token.symbol}
+            </button>
+          ) : (
+            <span className="step__max" aria-hidden>
+              —
+            </span>
+          )}
+        </div>
       </Step>
 
       <Step n={2} label="RECOMMENDED WAIT" state={s2}>
