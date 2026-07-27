@@ -135,6 +135,14 @@ export function Stepper(props: {
     }
   })();
 
+  // What is actually tippable once the pool fee is set aside.
+  const tippable = (() => {
+    const bal = shieldedOf(STRK);
+    if (bal === undefined) return null;
+    const net = bal - POOL_FEE_STRK;
+    return formatDisplay(net > 0n ? net : 0n, STRK.decimals);
+  })();
+
   const st = (done: boolean, active: boolean): StepState =>
     done ? "done" : active ? "active" : "todo";
 
@@ -339,6 +347,11 @@ export function Stepper(props: {
             {props.pending ? "…" : "TIP"}
           </button>
         </div>
+        <p className="step__hint">
+          {tippable === null
+            ? `EACH PRIVATE TIP ALSO PAYS A ${POOL_FEE_LABEL} STRK POOL FEE`
+            : `MOST YOU CAN TIP: ${tippable} STRK — THE REST COVERS THE ${POOL_FEE_LABEL} STRK POOL FEE`}
+        </p>
       </Step>
     </ol>
   );

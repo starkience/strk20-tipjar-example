@@ -22,11 +22,12 @@ import {
   getQuotes,
   PRIVACY_POOL_ADDRESS,
 } from "@avnu/avnu-sdk";
-import { CONFIG, STRK, TOKENS, type Token } from "../config";
+import { CONFIG, POOL_FEE_STRK, STRK, TOKENS, type Token } from "../config";
 import { fetchAllowance, fetchBalances, fetchTokens } from "../lib/tokens";
 import { friendlyError } from "../lib/errors";
 import {
   buildTipCalls,
+  formatUnits,
   parseStrk,
   parseUnits,
   parseTippedEvent,
@@ -444,11 +445,26 @@ export function useTipJar(opts?: {
         throw new Error("this wallet does not support STRK20 private tips");
       }
       if (submittingRef.current) return undefined; // a tip is already in flight
+
+      // Every private operation also pays the pool fee out of the shielded
+      // balance, so a 1 STRK tip actually needs 1 + fee. Check it here when the
+      // balance is known: otherwise the shortfall only appears as a generic
+      // paymaster execution error, after the user has already signed.
+      const amount = parseStrk(amountStrk);
+      const shieldedStrk = shieldedBalances?.[STRK.address];
+      if (shieldedStrk !== undefined && amount + POOL_FEE_STRK > shieldedStrk) {
+        setError(
+          `NEEDS ${formatUnits(amount + POOL_FEE_STRK, 18)} STRK SHIELDED ` +
+            `(TIP + ${formatUnits(POOL_FEE_STRK, 18)} POOL FEE) — YOU HAVE ` +
+            `${formatUnits(shieldedStrk, 18)}`,
+        );
+        return undefined;
+      }
+
       submittingRef.current = true;
       setError(null);
       setTxPending(true);
       try {
-        const amount = parseStrk(amountStrk);
         const actions: STRK20_ACTION[] = [
           {
             type: "transfer",
@@ -472,7 +488,7 @@ export function useTipJar(opts?: {
         setTxPending(false);
       }
     },
-    [account, privacySupported],
+    [account, privacySupported, shieldedBalances],
   );
 
   useEffect(() => {
