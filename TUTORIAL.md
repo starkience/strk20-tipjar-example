@@ -190,15 +190,14 @@ async function walletSupportsStrk20(wallet: WalletWithStarknetFeatures) {
 }
 ```
 
-This matters more than it looks. Our first attempt feature-detected by calling
-`strk20Balances([])`, which made the wallet pop a **"share your balances?"**
-consent prompt — on page load, before the user had asked for anything private.
-A privacy app that reads private state to decide whether it *can* read private
-state has already lost. `supportedWalletApi` reads nothing.
+This matters more than it looks. The tempting shortcut — call `strk20Balances([])`
+and see whether it throws — works, but it makes the wallet raise a **"share your
+balances?"** consent prompt on page load, before the user has asked for anything
+private. A privacy app should not read private state to decide whether it *can*
+read private state. `supportedWalletApi` answers the question and reads nothing.
 
-*(This was a real bug here. It was fixed in the app and
-[upstream in the skill](https://github.com/starkience/strk20-agent-skills), so
-you will not hit it.)*
+Treat every private read as something the user must opt into. It is the first
+place your app either earns or loses their trust.
 
 ### Step 3 — the private tip
 
@@ -263,11 +262,17 @@ const { transactionHash } = await executePrivateSwap({
 });
 ```
 
-Both legs stay inside the pool. We *did* write an anonymizer
-([`docs/ANONYMIZER.md`](docs/ANONYMIZER.md)) before discovering this — it is
-kept as a reference for what the SDK does underneath, **unaudited and not
-deployed**. Check whether your integration already exists before you write
-Cairo.
+Both legs stay inside the pool: AVNU withdraws the sell amount to its executor,
+routes the trade, and the bought STRK lands back as a new private note. The
+wallet does the proving; your app describes the trade.
+
+So the rule of thumb holds one step further than you would expect — **check
+whether an integration already exists before writing Cairo.** If you do need
+your own, [`docs/ANONYMIZER.md`](docs/ANONYMIZER.md) walks through a reference
+`privacy_invoke` anonymizer built against AVNU's route model, showing what the
+SDK does underneath and where the boundary sits between app code and a
+team-owned, audited contract. It is **unaudited and not deployed** — a teaching
+artifact, not a dependency.
 
 > The paymaster needs an API key, and a key in a browser bundle is a public key.
 > The deployed app proxies it through [`app/api/paymaster.ts`](app/api/paymaster.ts).
@@ -309,27 +314,96 @@ Full evidence: [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md).
 
 ---
 
-## What actually bit us
+## Designing the UX
 
-Every one of these cost real debugging time on mainnet, and none are obvious
-from the docs.
+The code is the easy part. What actually distinguishes a good STRK20 app is the
+interface, because a private flow has **three properties a public one does
+not**. None of them are obstacles — they are the mechanics that buy you
+privacy — but each is something the user must be able to see.
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| Wallet asks to **share balances** on load | feature-detecting with `strk20Balances` | use `supportedWalletApi` |
-| **Two prompts** for one shield | the ERC-20 `approve` must land before the deposit can be proven | expect it; say so in the UI |
-| Tip **reverts** right after a shield or swap | note not matured (~10 blocks) — and a *swap creates a new note* too | re-anchor the countdown after **both** |
-| `argent/duplicated-outside-nonce` | deposits wrap in `execute_from_outside` with a replay nonce; the **first** submission succeeded | report as duplicate, not failure |
-| Paymaster **error 156** | generic "would fail" — usually immature note or unaffordable fee | check maturity + balance ≥ amount + fee |
-| MAX button always fails | the flat pool fee is charged **on top** for STRK | reserve the fee in MAX |
-| Fee math wrong in the UI | the split differs **per token** — STRK charges on top, USDC takes it inside | stop predicting; show what the wallet reports |
-| STRK listed twice | AVNU returns `0x4718f5a…`, config holds `0x04718f5a…` | normalize felts before comparing (`lib/address.ts`) |
-| UI hangs after signing | `waitForTransaction` unbounded; paymaster-relayed hashes take a while to appear | give it a ceiling |
-| Reverts looked like successes | only checked acceptance | read `execution_status` from the receipt |
+### 1. A shield is two prompts, not one
 
-The general shape: **an accepted transaction is not a successful one**, and
-**private operations cost a flat fee large enough to change your UX**. Read the
-fee from the pool with `get_fee_amount` rather than hardcoding it.
+The ERC-20 `approve` has to land on-chain before the deposit can be proven
+against it. So the first time a user shields a given token, their wallet asks
+twice.
+
+**Design for it:** say so before they click. Our step 1 renders
+*"first STRK shield needs an approval — two prompts"* only when the allowance is
+actually missing. A user who expects two prompts is fine; a user who expects one
+assumes it double-charged them.
+
+### 2. Notes mature — about 10 blocks
+
+A freshly created note is not immediately spendable. This is true after a
+**shield** *and* after a **private swap**, since a swap credits a new note too.
+
+**Design for it:** make the wait legible and non-blocking. The app anchors a
+countdown at the block the note landed in, shows blocks remaining plus an ETA in
+seconds, and disables the spend button until it clears. A visible 20-second
+countdown reads as a system working; a button that silently fails reads as a
+broken app.
+
+```ts
+const head = await provider.getBlockNumber();
+setShieldedAtBlock(head);          // re-anchor after a shield AND after a swap
+```
+
+### 3. Every private operation costs a flat pool fee
+
+Not a percentage — a flat amount per operation, currently 4 STRK on mainnet.
+That is large enough to change your interface design.
+
+**Design for it, three ways:**
+
+- **Read it, don't hardcode it.** `get_fee_amount` on the pool.
+- **Reserve it in your shortcuts.** A "MAX" button that spends the whole balance
+  leaves nothing for the fee, so the transaction fails *after* the user signs.
+  Ours reserves the fee before filling the field.
+- **Report the outcome; don't predict it.** How the fee interacts with the
+  amount varies by token — shielding STRK charges it on top of the amount, while
+  other tokens can take it from within. Rather than compute a split we would get
+  wrong, the UI states that a fee applies and lets the wallet show the exact
+  numbers it is signing.
+
+### And one rule that is not about mechanics at all
+
+**Never read private state to make a UI decision.** Feature-detect with
+`supportedWalletApi`, not with a balance call. Refresh shielded balances only
+when the user presses SHOW, never on a timer — each read is a consent prompt,
+and an app that asks constantly trains users to click through prompts they
+should be reading.
+
+### What changes in your UI
+
+| Public flow | Private flow |
+| --- | --- |
+| one prompt | two, on a token's first shield |
+| spendable immediately | ~10 blocks to mature — show a countdown |
+| gas only | gas + a flat pool fee — reserve it in MAX |
+| tx appears in your event feed | **nothing to display** — say so explicitly |
+| balances read freely | read only on explicit user action |
+
+That fourth row is the one teams forget. A private tip emits no event, so your
+activity feed cannot show it. Do not leave that looking like a failure — our tip
+wall carries the line *"private tips don't appear here — only the creator's
+wallet sees them."* Honest copy about what is and is not visible is part of the
+integration, not decoration on top of it.
+
+### Standard Starknet hygiene, still required
+
+Nothing STRK20-specific, but private flows surface these faster:
+
+- **An accepted transaction is not a successful one.** Read `execution_status`
+  from the receipt — a revert is otherwise indistinguishable from success.
+- **Give `waitForTransaction` a ceiling.** Paymaster-relayed hashes can take a
+  while to become visible to your RPC; an unbounded await strands the UI.
+- **Normalize felts before comparing.** APIs return `0x4718f5a…` where your
+  config holds `0x04718f5a…` — same felt, but `===` disagrees
+  (`app/src/lib/address.ts`).
+- **Translate protocol errors.** Wallets and relayers surface machine codes;
+  map them to plain language (`app/src/lib/errors.ts`). A duplicate submission
+  rejected by replay protection, for instance, means the *first* one went
+  through — the opposite of what "error" suggests.
 
 ---
 

@@ -49,7 +49,7 @@ sncast call --contract-address <deployed_address> --function get_total --url <rp
 Then update `app/src/config.ts`: set `tipJarAddress`, `ownerAddress`, and
 `deployBlock` (the block of the deploy tx).
 
-## Gotchas we hit (so you don't have to)
+## Deployment notes (Starknet tooling)
 
 - **RPC spec version.** `sncast` 0.56 expects RPC spec `0.10.0`. A stable
   `0.9.0` endpoint (e.g. `https://rpc.starknet.lava.build/rpc/v0_9`) works with a

@@ -15,9 +15,9 @@ plugs into an existing app**, this is meant to be read top to bottom.
 ### 👉 Start with [**TUTORIAL.md**](TUTORIAL.md)
 
 The short, complete walkthrough: an ordinary mainnet app → the problem, shown
-on-chain → privacy added with the agent skill, in **0 contract changes**. It
-ends with the gotchas that cost us real debugging time. Everything else in this
-repo is the evidence behind it.
+on-chain → privacy added with the agent skill, in **0 contract changes** — then
+how to design the UX around it. Everything else in this repo is the evidence
+behind it.
 
 **Try it live:** <https://app-chi-three-39.vercel.app>
 
@@ -104,7 +104,7 @@ strk20-tipjar-example/
 │   ├── src/lib/tokens.ts         ← token list + batched public balance reads
 │   ├── src/lib/tipjar.ts         ← pure helpers: calldata, amounts, event decoding
 │   ├── src/lib/errors.ts         ← protocol codes → plain language
-│   ├── src/lib/address.ts        ← felt address normalization (see gotchas)
+│   ├── src/lib/address.ts        ← felt address normalization
 │   └── src/components/           ← Stepper, TokenSelect, Pills, TipForm, TxLog…
 └── docs/
     ├── ARCHITECTURE.md           ← how the pieces fit; what STRK20 changes
@@ -133,7 +133,7 @@ strk20-tipjar-example/
 | STRK20 pool | [`0x040337b1…812a`](https://voyager.online/contract/0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a) |
 | STRK token | `0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d` |
 
-Full record (tx hashes, gotchas, how to redeploy your own) in
+Full record (tx hashes, tooling notes, how to redeploy your own) in
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ---
@@ -176,25 +176,31 @@ cd app && npm test                             # 16 passing
 
 ---
 
-## Gotchas worth knowing before you build
+## What to design for
 
-Each of these cost real debugging time here, and none are obvious from the docs:
+A private flow behaves differently from a public one in a few specific ways.
+Build for them and the app feels smooth. [`TUTORIAL.md`](TUTORIAL.md) covers the
+UX in full; the short version:
 
-- **A shield is two transactions.** The ERC-20 `approve` must land on-chain
-  before the deposit can be proven, so your wallet prompts twice. It is not a
-  double-spend bug.
-- **Notes mature ~10 blocks** (~20s on mainnet). Freshly shielded funds cannot be
-  spent immediately.
+- **A shield is two prompts.** The ERC-20 `approve` must land on-chain before the
+  deposit can be proven against it, so the wallet asks twice on a token's first
+  shield. Tell the user in advance.
+- **Notes mature ~10 blocks** (~20s on mainnet) — after a shield *and* after a
+  swap. Show a countdown rather than letting a button fail silently.
 - **Every private operation costs a flat pool fee** — 4 STRK on mainnet at time
-  of writing. Read it from the pool with `get_fee_amount`; it is large enough to
-  change UX decisions, and "MAX" must reserve it or the transaction fails after
-  the user has signed.
-- **Give `waitForTransaction` a ceiling.** Paymaster-relayed transactions can
-  take a while to become visible to your RPC; an unbounded await strands the UI.
-- **Normalize addresses before comparing.** APIs return `0x4718f5a…` where your
-  config holds `0x04718f5a…` — the same felt, but `===` disagrees.
+  of writing. Read it with `get_fee_amount` rather than hardcoding it, and have
+  "MAX" reserve it, or the transaction fails after the user has signed.
+- **Private actions emit no events.** There is nothing for an activity feed to
+  display — say so, so the silence doesn't read as a failure.
+- **Read private state only on explicit user action.** Every read is a consent
+  prompt; feature-detect with `supportedWalletApi`, never with a balance call.
 - **Open notes carry public amounts.** A swap's output lands in one, so crediting
   it straight to a recipient publishes what they received.
+
+Plus standard Starknet practice that private flows surface quickly: give
+`waitForTransaction` a ceiling, read `execution_status` (an accepted transaction
+can still revert), and normalize felts before comparing — APIs return
+`0x4718f5a…` where your config holds `0x04718f5a…`.
 
 ---
 

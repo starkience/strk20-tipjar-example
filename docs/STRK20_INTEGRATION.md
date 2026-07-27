@@ -2,9 +2,8 @@
 
 > **Status: ✅ complete, verified on mainnet 2026-07-27.** This is the log of how
 > STRK20 privacy was added to the app, built **with the STRK20 agent skill**. It
-> records the actual commands, decisions and gotchas so a developer can
-> reproduce the process — including the corrections made along the way, since
-> those are the useful part.
+> records the actual commands and decisions, phase by phase, so a developer can
+> reproduce the process.
 
 ## Goal
 
