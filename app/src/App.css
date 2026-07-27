@@ -33,6 +33,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  position: relative;
 }
 
 .cabinet__top {
@@ -401,15 +402,30 @@
   pointer-events: none;
 }
 
-/* ---- Status ---------------------------------------------------------- */
-.error {
+/* ---- Error toast -----------------------------------------------------
+   Overlaid rather than in-flow, so a message can never resize the cabinet
+   or introduce a scrollbar. Click to dismiss. */
+.toast {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 74px;
+  z-index: 30;
   font-family: var(--display);
   font-size: 9px;
-  line-height: 1.7;
-  color: var(--red);
-  word-break: break-word;
-  max-height: 3.4em;
+  line-height: 1.6;
+  text-align: left;
+  color: #fff;
+  background: var(--red);
+  border: 3px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  padding: 10px 12px;
+  cursor: pointer;
+  max-height: 4.2em;
   overflow: hidden;
+}
+.toast:hover {
+  background: #c72b26;
 }
 
 /* ---- Scoreboard ------------------------------------------------------ */

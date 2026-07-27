@@ -165,9 +165,18 @@ export default function App() {
           </div>
 
           <div className="cabinet__foot">
-            {jar.error && <p className="error">{jar.error}</p>}
             <TipWall total={jar.total} count={jar.count} />
           </div>
+
+          {jar.error && (
+            <button
+              className="toast"
+              onClick={jar.dismissError}
+              title="Dismiss"
+            >
+              {jar.error}
+            </button>
+          )}
         </main>
 
         {showLog && <TxLog entries={entries} onClose={() => setShowLog(false)} />}

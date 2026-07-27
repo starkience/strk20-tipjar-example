@@ -24,6 +24,7 @@ import {
 } from "@avnu/avnu-sdk";
 import { CONFIG, STRK, TOKENS, type Token } from "../config";
 import { fetchBalances, fetchTokens } from "../lib/tokens";
+import { friendlyError } from "../lib/errors";
 import {
   buildTipCalls,
   parseStrk,
@@ -138,11 +139,13 @@ export function useTipJar(opts?: {
       // no balance query, no viewing key, no private data read.
       setPrivacySupported(await walletSupportsStrk20(wallet));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e));
     }
     },
     [refreshPublicBalance],
   );
+
+  const dismissError = useCallback(() => setError(null), []);
 
   // Called when the modal reports a disconnect.
   const clearWallet = useCallback(() => {
@@ -175,7 +178,7 @@ export function useTipJar(opts?: {
       });
       setTips(res.events.map(parseTippedEvent).reverse());
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e));
     }
   }, []);
 
@@ -202,7 +205,7 @@ export function useTipJar(opts?: {
         setShieldedBalances(map);
         return map;
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(friendlyError(e));
         throw e;
       }
     },
@@ -240,7 +243,7 @@ export function useTipJar(opts?: {
         void refreshPublicBalance(account.address);
         return transaction_hash;
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(friendlyError(e));
         throw e;
       } finally {
         submittingRef.current = false;
@@ -290,7 +293,7 @@ export function useTipJar(opts?: {
         void refreshShieldedIfShown();
         return transaction_hash;
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(friendlyError(e));
         throw e;
       } finally {
         submittingRef.current = false;
@@ -355,7 +358,7 @@ export function useTipJar(opts?: {
         void refreshShieldedIfShown();
         return transactionHash;
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(friendlyError(e));
         throw e;
       } finally {
         submittingRef.current = false;
@@ -400,7 +403,7 @@ export function useTipJar(opts?: {
         // nothing for the public wall to pick up — by design.
         return transaction_hash;
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(friendlyError(e));
         throw e;
       } finally {
         submittingRef.current = false;
@@ -466,5 +469,6 @@ export function useTipJar(opts?: {
     refresh,
     txPending,
     error,
+    dismissError,
   };
 }

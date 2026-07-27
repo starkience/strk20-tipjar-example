@@ -8,6 +8,7 @@ import {
   TIPPED_SELECTOR,
 } from "./tipjar";
 import { hash } from "starknet";
+import { friendlyError } from "./errors";
 
 const STRK = "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
 const JAR = "0x1234";
@@ -78,5 +79,26 @@ describe("formatDisplay", () => {
   });
   it("formats zero", () => {
     expect(formatDisplay(0n, 18)).toBe("0");
+  });
+});
+
+describe("friendlyError", () => {
+  it("translates the codes users actually hit", () => {
+    expect(friendlyError(new Error("An error occurred (USER_REFUSED_OP)"))).toBe(
+      "REJECTED IN WALLET",
+    );
+    expect(
+      friendlyError("PaymasterV2Error: Paymaster error 156: TRANSACTION_EXECUTION_ERROR"),
+    ).toBe("TRANSACTION WOULD FAIL — CHECK BALANCE AND FEES");
+    expect(friendlyError(new Error("insufficient balance"))).toBe(
+      "NOT ENOUGH BALANCE",
+    );
+  });
+  it("shortens anything unrecognised instead of dumping it", () => {
+    const long = "x".repeat(200);
+    expect(friendlyError(new Error(long)).length).toBeLessThanOrEqual(91);
+  });
+  it("never returns empty", () => {
+    expect(friendlyError(undefined)).toBe("SOMETHING WENT WRONG");
   });
 });
