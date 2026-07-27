@@ -12,10 +12,12 @@
   },
   "dependencies": {
     "@avnu/avnu-sdk": "^4.2.0",
+    "@gsap/react": "^2.1.2",
     "@starknet-io/get-starknet-discovery": "^6.0.2",
     "@starknet-io/get-starknet-ui": "^6.0.1",
     "@starknet-io/get-starknet-wallet-standard": "^6.0.2",
     "@starknet-io/types-js": "^0.10.3",
+    "gsap": "^3.15.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "starknet": "^10.4.0"

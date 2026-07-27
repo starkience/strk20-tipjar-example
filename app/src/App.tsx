@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { WalletConnectModal, useConnect } from "@starknet-io/get-starknet-ui";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
 import { useTipJar } from "./hooks/useTipJar";
 import { ModeToggle } from "./components/ModeToggle";
 import { Stepper } from "./components/Stepper";
@@ -18,6 +20,7 @@ export default function App() {
   const { connected } = useConnect();
   const tipButtonRef = useRef<HTMLButtonElement>(null);
   const coinTargetRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const [showLog, setShowLog] = useState(true);
   const [mode, setMode] = useState<"public" | "private">("public");
   // Transactions made in this session, newest first — the log fills as the
@@ -31,6 +34,26 @@ export default function App() {
   }, [connected, selectWallet, clearWallet]);
 
   const isPrivate = mode === "private" && jar.privacySupported;
+
+  // Stepped easing keeps the motion in the 8-bit register — no smooth glides.
+  useGSAP(
+    () => {
+      gsap.fromTo(
+        stageRef.current,
+        { autoAlpha: 0, y: 6 },
+        { autoAlpha: 1, y: 0, duration: 0.22, ease: "steps(4)" },
+      );
+      gsap.from(".step, .tip-form", {
+        autoAlpha: 0,
+        x: -8,
+        duration: 0.2,
+        stagger: 0.045,
+        ease: "steps(3)",
+        clearProps: "all",
+      });
+    },
+    { dependencies: [isPrivate], scope: stageRef },
+  );
 
   const log = (kind: string, hash: string, detail?: string) =>
     setSession((s) => [{ kind, hash, time: Date.now(), detail }, ...s]);
@@ -114,30 +137,35 @@ export default function App() {
             privateEnabled={jar.privacySupported}
           />
 
-          {isPrivate ? (
-            <Stepper
-              disabled={!jar.address}
-              pending={jar.txPending}
-              blocksRemaining={jar.blocksRemaining}
-              publicBalances={jar.publicBalances}
-              onShield={handleShield}
-              onSwap={handleSwap}
-              onTip={handlePrivateTip}
-              tipButtonRef={tipButtonRef}
-            />
-          ) : (
-            <TipForm
-              disabled={!jar.address}
-              pending={jar.txPending}
-              isPrivate={false}
-              onSubmit={handlePublicTip}
-              buttonRef={tipButtonRef}
-            />
-          )}
+          {/* Fixed-height stage so PUBLIC and PRIVATE occupy the same space and
+              nothing below shifts when the mode changes. */}
+          <div className="stage" ref={stageRef}>
+            {isPrivate ? (
+              <Stepper
+                disabled={!jar.address}
+                pending={jar.txPending}
+                blocksRemaining={jar.blocksRemaining}
+                publicBalances={jar.publicBalances}
+                onShield={handleShield}
+                onSwap={handleSwap}
+                onTip={handlePrivateTip}
+                tipButtonRef={tipButtonRef}
+              />
+            ) : (
+              <TipForm
+                disabled={!jar.address}
+                pending={jar.txPending}
+                isPrivate={false}
+                onSubmit={handlePublicTip}
+                buttonRef={tipButtonRef}
+              />
+            )}
+          </div>
 
-          {jar.error && <p className="error">{jar.error}</p>}
-
-          <TipWall total={jar.total} count={jar.count} />
+          <div className="cabinet__foot">
+            {jar.error && <p className="error">{jar.error}</p>}
+            <TipWall total={jar.total} count={jar.count} />
+          </div>
         </main>
 
         {showLog && <TxLog entries={entries} onClose={() => setShowLog(false)} />}

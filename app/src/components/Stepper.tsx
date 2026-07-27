@@ -5,7 +5,9 @@
 // app itself did (did you shield in this session, has that note matured) and
 // from PUBLIC token balances. Tipping is always available; the wallet enforces
 // sufficient funds. The swap step is skipped when you shielded STRK already.
-import { useEffect, useState, type Ref } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
 import { STRK, TOKENS, type Token } from "../config";
 import { TokenSelect } from "./TokenSelect";
 import { formatUnits } from "../lib/tipjar";
@@ -18,9 +20,26 @@ function Step(props: {
   state: StepState;
   children?: React.ReactNode;
 }) {
+  const badgeRef = useRef<HTMLSpanElement>(null);
+
+  // Pop the badge when the step completes.
+  useGSAP(
+    () => {
+      if (props.state !== "done" || !badgeRef.current) return;
+      gsap.fromTo(
+        badgeRef.current,
+        { scale: 1.6 },
+        { scale: 1, duration: 0.26, ease: "steps(4)" },
+      );
+    },
+    { dependencies: [props.state] },
+  );
+
   return (
     <li className={`step step--${props.state}`}>
-      <span className="step__badge">{props.state === "done" ? "✓" : props.n}</span>
+      <span className="step__badge" ref={badgeRef}>
+        {props.state === "done" ? "✓" : props.n}
+      </span>
       <div className="step__body">
         <span className="step__label">{props.label}</span>
         {props.children}
