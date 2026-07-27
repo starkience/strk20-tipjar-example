@@ -40,6 +40,19 @@ export default function App() {
   const stageRef = useRef<HTMLDivElement>(null);
   const [showLog, setShowLog] = useState(true);
   const [mode, setMode] = useState<"public" | "private">("public");
+  // Proving a private transaction takes a while. Offering CANCEL immediately
+  // invites people to kill a request that is working — and cancelling cannot
+  // stop it, so the transaction lands while the app shows nothing. Hold the
+  // button back until waiting is genuinely unusual.
+  const [canCancel, setCanCancel] = useState(false);
+  useEffect(() => {
+    if (!jar.txPending) {
+      setCanCancel(false);
+      return;
+    }
+    const id = setTimeout(() => setCanCancel(true), 45_000);
+    return () => clearTimeout(id);
+  }, [jar.txPending]);
   const { selectWallet, clearWallet } = jar;
   useEffect(() => {
     if (connected) void selectWallet(connected);
@@ -177,10 +190,18 @@ export default function App() {
             <div className="status">
               {jar.txPending ? (
                 <div className="status__bar status__bar--pending">
-                  <span>WAITING FOR WALLET…</span>
-                  <button className="status__action" onClick={jar.cancelPending}>
-                    CANCEL
-                  </button>
+                  <span>
+                    WORKING… PROVING A PRIVATE TX CAN TAKE A MINUTE — KEEP THIS
+                    TAB OPEN
+                  </span>
+                  {canCancel && (
+                    <button
+                      className="status__action"
+                      onClick={jar.cancelPending}
+                    >
+                      STOP WAITING
+                    </button>
+                  )}
                 </div>
               ) : jar.error ? (
                 <button

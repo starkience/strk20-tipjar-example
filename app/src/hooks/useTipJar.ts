@@ -181,7 +181,9 @@ export function useTipJar(opts?: {
   const cancelPending = useCallback(() => {
     submittingRef.current = false;
     setTxPending(false);
-    setError("STOPPED WAITING — CHECK YOUR WALLET BEFORE RETRYING");
+    setError(
+      "STOPPED WAITING. THE TRANSACTION MAY STILL COMPLETE — PRESS SHOW TO CHECK YOUR BALANCE BEFORE RETRYING",
+    );
   }, []);
 
   // Called when the modal reports a disconnect.

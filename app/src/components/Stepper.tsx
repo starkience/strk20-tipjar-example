@@ -50,7 +50,9 @@ function Step(props: {
     { dependencies: [props.state] },
   );
 
-  const collapsible = props.state === "done" && props.onToggle;
+  // Any step with a toggle can be opened — a locked step is not unreachable,
+  // it just is not the current one.
+  const collapsible = Boolean(props.onToggle);
 
   return (
     <li className={`step step--${props.state} ${expanded ? "is-open" : ""}`}>
@@ -161,13 +163,28 @@ export function Stepper(props: {
   };
   const shieldPreview = netShielded(shieldAmount, token);
 
-  const s1: StepState = shieldedNow ? "done" : "active";
-  const s2: StepState = checked ? "done" : "active";
-  const s3: StepState = maturing ? "active" : shieldedNow ? "done" : "locked";
-  const s4: StepState =
-    isStrk || swapped ? "done" : shieldedNow ? "active" : "locked";
-  const s5: StepState = "active";
+  // Exactly one step is expanded: the first unfinished one, or whichever the
+  // user opened. Two expanded steps overflowed the cabinet and produced a
+  // scrollbar — the frame is fixed, so height has to be bounded by design
+  // rather than by hoping the content fits.
+  const done = [
+    shieldedNow,
+    checked,
+    shieldedNow && !maturing,
+    isStrk || swapped,
+    false, // tipping is never "done" — it is the end of the flow
+  ];
+  const firstUnfinished = done.findIndex((d) => !d) + 1;
+  const current = openStep ?? firstUnfinished;
 
+  const stateOf = (n: number): StepState => {
+    if (n === current) return "active";
+    return done[n - 1] ? "done" : "locked";
+  };
+  const [s1, s2, s3, s4, s5] = [1, 2, 3, 4, 5].map(stateOf);
+
+  // Any step can be opened, including finished ones — tipping stays reachable
+  // at every point in the flow, it just is not expanded by default.
   const toggle = (n: number) => () =>
     setOpenStep((cur) => (cur === n ? null : n));
 
@@ -304,7 +321,11 @@ export function Stepper(props: {
         n={3}
         label="RECOMMENDED WAIT"
         state={s3}
-        summary={shieldedNow ? "READY" : undefined}
+        open={openStep === 3}
+        onToggle={toggle(3)}
+        summary={
+          maturing ? `${props.blocksRemaining} BLOCKS` : shieldedNow ? "READY" : "—"
+        }
       >
         <span className="step__countline">
           <span className="step__count">
@@ -322,7 +343,9 @@ export function Stepper(props: {
           </>
         }
         state={s4}
-        summary={isStrk ? "NOT NEEDED" : swapped ? "SWAPPED" : undefined}
+        open={openStep === 4}
+        onToggle={toggle(4)}
+        summary={isStrk ? "NOT NEEDED" : swapped ? "SWAPPED" : "—"}
       >
         <div className="step__row">
           <span className="field">
@@ -357,7 +380,14 @@ export function Stepper(props: {
         />
       </Step>
 
-      <Step n={5} label="TIP" state={s5}>
+      <Step
+        n={5}
+        label="TIP"
+        state={s5}
+        open={openStep === 5}
+        onToggle={toggle(5)}
+        summary="—"
+      >
         <div className="step__note">
           <span className="step__note-label">SHIELDED</span>
           <span className="step__net">
