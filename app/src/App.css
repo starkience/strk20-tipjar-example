@@ -215,11 +215,13 @@
   line-height: 1;
 }
 .tokensel__list {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 100%;
+  /* Fixed + portaled to <body>: the step's ancestor scrolls and would clip an
+     absolutely positioned list. Scrolls internally so a long token list never
+     grows the page. */
+  position: fixed;
+  z-index: 9998;
+  max-height: 240px;
+  overflow-y: auto;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -696,3 +698,20 @@
   color: #1c4fd8;
 }
 
+
+/* Dropdown scrollbar matches the inked chrome */
+.tokensel__list::-webkit-scrollbar {
+  width: 8px;
+}
+.tokensel__list::-webkit-scrollbar-thumb {
+  background: var(--ink);
+}
+.tokensel__list::-webkit-scrollbar-track {
+  background: var(--paper);
+}
+
+/* Row transitions: keep overflow contained while a row expands in */
+.txlog__row {
+  overflow: hidden;
+  transition: background 160ms ease;
+}
