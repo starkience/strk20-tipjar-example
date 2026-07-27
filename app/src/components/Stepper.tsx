@@ -67,6 +67,7 @@ export function Stepper(props: {
 }) {
   const [token, setToken] = useState<Token>(STRK);
   const [shieldAmount, setShieldAmount] = useState("5");
+  const [swapAmount, setSwapAmount] = useState("5");
   const [tipAmount, setTipAmount] = useState("1");
   const [swapped, setSwapped] = useState(false);
 
@@ -225,18 +226,29 @@ export function Stepper(props: {
           <span className="step__count">—</span>
         ) : (
           <div className="step__row">
+            <span className="field">
+              <input
+                className="field__input"
+                type="text"
+                inputMode="decimal"
+                value={swapAmount}
+                onChange={(e) => setSwapAmount(e.target.value)}
+                aria-label={`Amount of ${token.symbol} to swap`}
+              />
+              <span className="field__unit">{token.symbol}</span>
+            </span>
             <button
               className="btn btn--dark"
               type="button"
               disabled={props.disabled || props.pending || maturing}
               onClick={() =>
                 props
-                  .onSwap(token, shieldAmount)
+                  .onSwap(token, swapAmount)
                   .then(() => setSwapped(true))
                   .catch(() => {})
               }
             >
-              {props.pending ? "…" : `SWAP ${token.symbol}`}
+              {props.pending ? "…" : "SWAP"}
             </button>
           </div>
         )}
