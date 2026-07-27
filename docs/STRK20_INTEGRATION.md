@@ -77,9 +77,9 @@ hidden-vs-visible table. Phases:
 
 ## Step 5 — Execute
 
-> ✅ Plan approved; Phases 1 and 2 built. Execution ran one phase at a time, each
-> ending with a manual wallet check. Remaining: the live mainnet private-tip
-> verification (below).
+> ✅ **Complete and verified on mainnet.** Plan approved; phases executed one at
+> a time, each ending with a manual wallet check. The private-tip evidence is
+> recorded below.
 
 ### Log (filled as phases complete)
 
@@ -122,8 +122,25 @@ hidden-vs-visible table. Phases:
   - **Open item (verify live):** whether a freshly-deposited note is spendable by
     the transfer in the *same* transaction, or shield + transfer must be two
     requests. Validated in the manual mainnet check below.
-- [ ] Evidence: private tip result — what an observer sees vs. the creator's wallet
-      (captured during the manual mainnet check)
+- [x] **Evidence — verified on mainnet 2026-07-27**
+
+      The creator's wallet (Ready) shows four **private receives** — +20, +20,
+      +1 and +1 STRK, 42 STRK in total — alongside one ordinary public "Tip" of
+      1 STRK.
+
+      The public chain, for the same period, shows **only three `Tipped`
+      events** totalling 3 STRK, and `get_total()` on the jar still returns
+      `(3 STRK, 3 tips)`.
+
+      So 42 STRK reached the creator with **no public trace**: the private tips
+      never touched the contract, emitted no event, and never appeared in the
+      "LATEST TIPS" wall. That contrast — a wall that stays frozen while the
+      creator is actually being paid — is the whole point of the repo.
+
+      One honest detail: the creator's wallet *does* show the sender
+      ("From 0x6f5e…80ca"). Private transfers run over a directional channel, so
+      the **recipient** can see who paid them — which is what you want for a tip
+      jar. What is hidden is that no third party can.
 
 ## Going further — private swap-tips (anonymizer contract)
 

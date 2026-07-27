@@ -19,7 +19,7 @@ plugs into an existing app**, this is meant to be read top to bottom.
 | Part | What | State |
 | --- | --- | --- |
 | **Part 1 — Public tip jar** | `TipJar` Cairo contract + React frontend, deployed on mainnet | ✅ Done |
-| **Part 2 — STRK20 privacy** | Shield → wait → private swap → private tip, built **with the [STRK20 agent skill](https://strk20-by-example.org/agent-skill)** | ✅ Built. Step-by-step log: [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md) |
+| **Part 2 — STRK20 privacy** | Shield → wait → private swap → private tip, built **with the [STRK20 agent skill](https://strk20-by-example.org/agent-skill)** | ✅ **Verified on mainnet** — 42 STRK received privately while the public wall stayed at 3 tips. Log + evidence: [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md) |
 | **Private swaps (any token → STRK)** | Via the **[AVNU SDK](https://docs.avnu.fi/docs/privacy)** — no custom contract needed | ✅ Wired into the app |
 | **Anonymizer contract** | A Cairo `privacy_invoke` helper, kept to show what the SDK does underneath | 🧪 Reference only — **not audited, not deployed**. See [`docs/ANONYMIZER.md`](docs/ANONYMIZER.md) |
 
@@ -44,6 +44,10 @@ PRIVATE  ① Tipper ──shield──▶ STRK20 pool          (public deposit, 
 
 The public path and the private path deliver the same value to the creator. The
 private one leaves **no public link between tipper and creator**.
+
+Verified on mainnet: the creator's wallet shows **42 STRK received privately**,
+while the jar's public counter still reads **3 tips / 3 STRK** and the "LATEST
+TIPS" wall never moved.
 
 ### The part that is easy to get wrong
 
