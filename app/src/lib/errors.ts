@@ -13,8 +13,11 @@ const RULES: [RegExp, string][] = [
   [/not registered|register/i, "ACCOUNT NOT REGISTERED IN THE POOL"],
   [/no route|no liquidity/i, "NO SWAP ROUTE FOR THIS PAIR"],
   [/slippage/i, "PRICE MOVED — TRY AGAIN"],
+  // Paymaster 156 is generic: it means the simulation reverted. In this flow
+  // that is nearly always an immature note (a shield or swap less than ~10
+  // blocks old) or too little shielded balance once the pool fee is added.
   [/paymaster|transaction_execution_error|execution error/i,
-   "TRANSACTION WOULD FAIL — CHECK BALANCE AND FEES"],
+   "WOULD FAIL — WAIT FOR THE NOTE TO MATURE, OR CHECK BALANCE + POOL FEE"],
   [/does not support strk20|not support/i, "THIS WALLET DOESN'T SUPPORT STRK20"],
   [/connect a wallet/i, "CONNECT A WALLET FIRST"],
   [/already strk/i, "ALREADY STRK — NO SWAP NEEDED"],

@@ -230,7 +230,7 @@ export function Stepper(props: {
 
       <Step
         n={3}
-        label="RECOMMENDED WAIT"
+        label="NOTE MATURITY"
         state={st(shieldedNow && !maturing, maturing)}
         value={
           maturing ? (

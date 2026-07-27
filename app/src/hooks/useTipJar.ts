@@ -407,7 +407,17 @@ export function useTipJar(opts?: {
           transactionHash,
           `${amountStr} ${token.symbol} → STRK`,
         );
-        onTxStatusRef.current?.(transactionHash, await settle(transactionHash));
+        const status = await settle(transactionHash);
+        onTxStatusRef.current?.(transactionHash, status);
+        // A swap credits a NEW note, which is subject to the same ~10-block
+        // maturity as a shield. Re-anchor the countdown, otherwise tipping
+        // straight after a swap spends an immature note and the transaction
+        // reverts (surfacing as a generic paymaster execution error).
+        if (status !== "reverted") {
+          const head = await provider.getBlockNumber();
+          setShieldedAtBlock(head);
+          setCurrentBlock(head);
+        }
         return transactionHash;
       } catch (e) {
         setError(friendlyError(e));

@@ -91,7 +91,7 @@ describe("friendlyError", () => {
     );
     expect(
       friendlyError("PaymasterV2Error: Paymaster error 156: TRANSACTION_EXECUTION_ERROR"),
-    ).toBe("TRANSACTION WOULD FAIL — CHECK BALANCE AND FEES");
+    ).toBe("WOULD FAIL — WAIT FOR THE NOTE TO MATURE, OR CHECK BALANCE + POOL FEE");
     expect(friendlyError(new Error("insufficient balance"))).toBe(
       "NOT ENOUGH BALANCE",
     );
