@@ -853,6 +853,14 @@
 .status__bar--error:hover {
   background: #c72b26;
 }
+/* Idle state of the reserved status slot. Quieter than pending/error — it is
+   standing context, not an event, so it must not read as an alert. */
+.status__bar--note {
+  background: transparent;
+  color: var(--ink);
+  border-style: dashed;
+  opacity: 0.72;
+}
 .status__action {
   font-family: var(--display);
   font-size: 9px;

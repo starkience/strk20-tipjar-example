@@ -62,20 +62,45 @@ export const STRK = TOKENS[0];
  */
 export const POOL_FEE_STRK = 4n * 10n ** 18n;
 
+/**
+ * NOTE — never write `const env = import.meta.env` and read fields off it.
+ * Vite statically replaces individual `import.meta.env.X` accesses, but
+ * aliasing the object forces it to inline the WHOLE env — every VITE_ variable,
+ * including secrets — into the bundle, defeating the dead-code elimination that
+ * keeps the paymaster key out. Always access fields directly, as below.
+ *
+ * Which chain the app talks to. Mainnet is the default because that is where
+ * the demo jar and the verified evidence live.
+ *
+ * A note on switching, because it is less mechanical than it looks: on the
+ * Wallet API route the dapp **never passes a pool address**. `shield` and
+ * `sendPrivateTip` send actions, and the user's wallet picks the pool for
+ * whichever network it is connected to. So the settings below only move the
+ * *public* half of the app (RPC, jar, tokens) — whether the *private* half
+ * works on Sepolia is a question about the wallet, not about this file.
+ * See docs/DEPLOYMENT.md → "Running on Sepolia".
+ */
 export const CONFIG = {
-  rpcUrl: "https://rpc.starknet.lava.build/rpc/v0_9",
+  rpcUrl: import.meta.env.VITE_RPC_URL ?? "https://rpc.starknet.lava.build/rpc/v0_9",
   strkAddress: STRK.address,
-  // Live mainnet deployment (Task 6):
+  // Live mainnet deployment (Task 6). Point these at your own jar — see
+  // docs/DEPLOYMENT.md — or override without editing code via .env.local.
   tipJarAddress:
+    import.meta.env.VITE_TIPJAR_ADDRESS ??
     "0x03ade0d029152e3b52188b5a32eac1f8b6f14d2fc3bdae1b94d9f6c545b8a64f",
-  deployBlock: 12234555,
+  deployBlock: Number(import.meta.env.VITE_DEPLOY_BLOCK ?? 12234555),
+  /**
+   * Where tips land. This is the demo creator's wallet, so a cloned copy pays
+   * the demo author until you change it — the app says so in its footer.
+   */
   ownerAddress:
+    import.meta.env.VITE_OWNER_ADDRESS ??
     "0x06196AFC75E23edc79ecF3982F84dDB9142EcA19CDcE678b42Cface67F063eAa",
   // Private swaps go through AVNU's paymaster, which requires an API key.
   //
   // A key bundled into a browser app is publicly readable, so in production the
   // key stays server-side: the SDK is pointed at our own /api/paymaster route
-  // (see app/api/paymaster/), which attaches the key and forwards the request.
+  // (see app/api/paymaster.ts), which attaches the key and forwards the request.
   //
   // `vite dev` serves no serverless functions, so local development instead
   // reads a key from .env.local (gitignored, never committed).

@@ -104,12 +104,21 @@ hidden-vs-visible table. Phases:
   - **Manual check pending** — see below.
 - [x] **Phase 2 — "Tip privately" private transfer** ✅ 2026-07-24, verified on
       mainnet 2026-07-27 (evidence below)
-  - Added `sendPrivateTip` in `app/src/hooks/useTipJar.ts`: a batched
-    **`deposit` + `transfer`** via `WalletAccountV6.strk20InvokeTransaction`.
-    It shields exactly the tip amount from public STRK, then privately transfers
-    it to `CONFIG.ownerAddress` inside the pool. Sourcing from public STRK every
-    time means **the app never reads the tipper's shielded balance** — only the
-    `deposit` and `transfer` actions are used (least privilege).
+  - Added `sendPrivateTip` in `app/src/hooks/useTipJar.ts`.
+  - **Built batched, shipped decoupled — the most important change in the
+    project.** The first implementation sent a batched **`deposit` + `transfer`**
+    in one `strk20InvokeTransaction`, sourcing each tip from public STRK. It
+    works, and it is not private: **a deposit is a public leg naming the
+    tipper**, so bundling it with the transfer lets an observer correlate the two
+    ends. The pool fee gets paid and the link survives.
+  - **Shipped design:** two independent actions, separated in *time*. `shield`
+    sends a lone `deposit`; the note matures (~10 blocks); `sendPrivateTip` later
+    sends a lone `transfer` to `CONFIG.ownerAddress`. The extra transaction, the
+    extra pool fee and the wait are the price of unlinkability.
+    (Commit `0dd8a27` — *decouple shield from tip for real unlinkability*.)
+  - Least privilege is preserved a different way: `sendPrivateTip` uses only the
+    `transfer` action, and shielded balances are read **only** on an explicit
+    SHOW press — never on a timer, never to feature-detect.
   - The private path calls **no contract** and emits **no `Tipped` event**, so it
     never appears in the tip wall. `TipWall` now carries an honest note:
     *"Private tips don't appear here — only the creator's wallet sees them."*
@@ -119,10 +128,11 @@ hidden-vs-visible table. Phases:
   - Exact action shapes taken from the installed types
     (`@starknet-io/types-js` → `STRK20_DEPOSIT_ACTION` / `STRK20_TRANSFER_ACTION`);
     method names from the WalletAccount guide — **no guessing**, per the skill.
-  - Verified headlessly: `npm run build` (typecheck) passes, `npm test` 6/6.
-  - **Open item (verify live):** whether a freshly-deposited note is spendable by
-    the transfer in the *same* transaction, or shield + transfer must be two
-    requests. Validated in the manual mainnet check below.
+  - Verified headlessly: `npm run build` (typecheck) passes, `npm test` passes.
+  - **Resolved:** the open question was framed as *"can a freshly-deposited note
+    be spent by a transfer in the same transaction?"* — but the privacy answer
+    made it moot. Whether or not batching is technically possible, it is the
+    wrong design. Shield separately, earlier. See the note above.
 - [x] **Evidence — verified on mainnet 2026-07-27**
 
       The creator's wallet (Ready) shows four **private receives** — +20, +20,

@@ -84,19 +84,45 @@ never appear in the public "LATEST TIPS" wall.
 6. **Manual check (you):** connect Ready via the app; confirm the private action
    appears with Ready and is hidden with a non-privacy wallet.
 
-## 6. Phase 2 — the "Tip privately" action ✅ built 2026-07-24 (live verification pending)
+## 6. Phase 2 — the "Tip privately" action ✅ built 2026-07-24, verified on mainnet 2026-07-27
+
+> ⚠️ **This phase was planned one way and shipped another.** The change is the
+> most important lesson in the project, so the original text is kept below
+> rather than quietly rewritten. **Build from step 2b, not 2a.**
 
 1. Add a **"Tip privately"** button in `app/src/components/TipForm.tsx`
    alongside the public "INSERT TIP", wired through a new handler in
    `app/src/App.tsx` / `useTipJar` (kept separate from `sendTip`).
-2. Wire the private tip via `WalletAccountV6.strk20InvokeTransaction([...])` as a
-   **batched `deposit` + `transfer`**: shield exactly the tip amount from public
-   STRK, then privately transfer it to `CONFIG.ownerAddress`. This sources the
-   tip from public STRK every time, so **the app never reads the tipper's
-   shielded balance** (least privilege — only `deposit` + `transfer` are used;
-   no `strk20Balances`). **Verify at build time** (against the WalletAccount
-   guide / Ready) whether a freshly-deposited note can be spent in the *same*
-   transaction, or whether shield and transfer must be two sequential requests.
+
+2a. ~~Wire the private tip via `WalletAccountV6.strk20InvokeTransaction([...])`
+   as a **batched `deposit` + `transfer`**: shield exactly the tip amount from
+   public STRK, then privately transfer it to `CONFIG.ownerAddress`. This sources
+   the tip from public STRK every time, so the app never reads the tipper's
+   shielded balance.~~ **Superseded — do not build this.**
+
+   The plan treated batching as a *technical* question ("can a freshly-deposited
+   note be spent in the same transaction?"). Execution showed the real question
+   is a *privacy* one, and the answer makes the technical one moot:
+
+   **A deposit is a public leg that names the tipper.** Put it in the same
+   transaction as the private transfer and any observer can correlate the two
+   ends — you pay the pool fee and get no unlinkability. Batching would have
+   produced a demo that looks private and is not.
+
+2b. **Shipped design — two independent user actions.** The tipper shields
+   *earlier, on its own* (`shield`, a lone `deposit` action), waits for the note
+   to mature, and later sends a lone `transfer` action to `CONFIG.ownerAddress`.
+   Separating them in *time*, not just in code, is what actually breaks the link.
+
+   The cost is real and worth naming: an extra transaction, an extra pool fee,
+   and a ~10-block wait. That is the price of unlinkability, not overhead to
+   optimise away. See `TUTORIAL.md` → "The design decision that makes it actually
+   private", and `app/src/hooks/useTipJar.ts` (`shield`, `sendPrivateTip`).
+
+   Least privilege is preserved differently: `sendPrivateTip` sends only a
+   `transfer`, and shielded balances are read **only** when the user presses
+   SHOW — never on a timer, never to feature-detect.
+
 3. **Invariant:** the private path does **not** call `TipJar` and emits no
    `Tipped` event → it never appears in "LATEST TIPS". Add honest UI copy near
    the wall: *"Private tips don't appear here — only the creator's wallet sees
@@ -122,17 +148,24 @@ Mainnet-first (your choice); each real mainnet send gets an explicit go-ahead at
 that moment. Headless gates: clean `npm install`, `npm run build`, `npm test`.
 
 Manual (Wallet API route):
-- [ ] Connect with the **Ready** extension — the app discovers it via
+- [x] Connect with the **Ready** extension — the app discovers it via
       get-starknet v6.
-- [ ] Capability check: the private action appears with Ready and degrades
-      gracefully with a non-privacy wallet.
-- [ ] (If needed) **Shield** a small amount of STRK into the pool. A screening
-      decline is a protocol outcome to surface in UX, not an app bug.
-- [ ] **Tip privately** → private transfer to the creator
-      (`CONFIG.ownerAddress`).
-- [ ] Confirm the **creator's Ready wallet** shows the received private balance,
+- [x] Capability check: the private action appears with Ready and degrades
+      gracefully with a non-privacy wallet. Detection uses
+      `supportedWalletApi` (≥ 0.10.3), **not** a balance probe.
+- [x] **Shield** into the pool. Done for STRK and USDC; a shield is two prompts
+      on a token's first use (the ERC-20 `approve` must land before the deposit
+      can be proven against it). A screening decline is a protocol outcome to
+      surface in UX, not an app bug.
+- [x] **Tip privately** → private transfer to the creator
+      (`CONFIG.ownerAddress`), sent as its own transaction after the note
+      matured.
+- [x] Confirm the **creator's Ready wallet** shows the received private balance,
       **and** that the public "LATEST TIPS" wall does **not** show it.
-- [ ] Cross-check anything odd against the wallet test dapp:
+      **Result: 42 STRK received privately (+20, +20, +1, +1) while the public
+      counter stayed at 3 tips / 3 STRK.** Full evidence in
+      [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md).
+- [x] Cross-check anything odd against the wallet test dapp:
       <https://starknet-wallet-account.vercel.app/>
 
 Note: no testnet STRK20 pool is assumed (re-verify in §10); the real private
@@ -149,18 +182,35 @@ transfer is exercised on mainnet.
 - **No key material in the repo** — the wallet holds keys; the dapp only asks it
   to act.
 
-## 10. Open items to re-verify at build time
+## 10. Open items — and what execution answered
 
-- Exact `WalletAccountV6` method/action names for **private transfer** and
-  **shield** (fetch the WalletAccount guide — don't guess).
-- Whether a **testnet** STRK20 pool exists (would open a safer test path).
-- **Ready** extension's dapp-facing behavior: capability-detection mechanism and
-  whether it exposes shielded balances (gates optional Phase 3).
-- **Xverse** dapp-facing Wallet API status; **fee/paymaster** UX design.
-- **Deposit+transfer batching (verify live):** Phase 2 sends
-  `strk20InvokeTransaction([deposit, transfer])` in one request. Confirm against
-  the Ready wallet on mainnet that a freshly-deposited note can be spent by the
-  transfer in the same transaction; if not, split into two sequential requests.
+> **Resolved during execution.** Kept as questions-with-answers, because what
+> the plan could not know up front is the useful part.
+
+- **Exact `WalletAccountV6` method/action names.** ✅ `strk20InvokeTransaction(actions)`
+  with `STRK20_ACTION` from `@starknet-io/types-js` — `deposit`, `transfer`,
+  `withdraw`, `invoke`. Taken from the installed types, not guessed.
+- **Does a testnet STRK20 pool exist?** ✅ Yes — Sepolia
+  `0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91`.
+  **But it does not straightforwardly open a safer path for *this* route.** On
+  the Wallet API route the dapp never passes a pool address — `shield` and
+  `sendPrivateTip` send actions only, and the *wallet* selects the pool for its
+  connected network. That address comes from the **wallet-builder SDK** docs,
+  where you configure the pool yourself. So a Sepolia path here depends on
+  **Ready supporting STRK20 on Sepolia**, not on the dapp's config. See
+  `docs/DEPLOYMENT.md` → "Running on Sepolia" for what is and is not verified.
+- **Ready's dapp-facing behavior.** ✅ Capability detection via
+  `supportedWalletApi` (≥ 0.10.3). It *does* expose shielded balances through
+  `strk20Balances`, gated behind a per-call user consent prompt — which is why
+  the app reads them only on an explicit SHOW press.
+- **Xverse** dapp-facing Wallet API status: still in progress; unchanged.
+  **Fee/paymaster UX:** ✅ designed — the flat pool fee is reserved by the MAX
+  shortcut and reported rather than predicted (the split varies by token).
+  AVNU's paymaster sponsors gas on private swaps, proxied server-side via
+  `app/api/paymaster.ts` so the API key never ships in the bundle.
+- **Deposit+transfer batching.** ✅ **Resolved as a privacy decision, not a
+  technical one.** See §6.2a/2b — batching was abandoned because a deposit is a
+  public leg naming the tipper. Shield separately, earlier.
 - get-starknet **v6 import surface** vs the current v4 usage in
   `useTipJar.ts` (breaking migration). ✅ resolved in Phase 1: `createStore`
   from `@starknet-io/get-starknet-discovery`; `WalletWithStarknetFeatures` from

@@ -42,7 +42,7 @@ Clarity and comments matter more than cleverness.
 
 ```bash
 # Contracts (Scarb 2.16, Starknet Foundry 0.56)
-cd contracts && scarb build && snforge test      # 11 tests
+cd contracts && scarb build && snforge test
 
 # Frontend (Node 20+)
 cd app && npm install

@@ -213,7 +213,18 @@ export default function App() {
                 >
                   {jar.error}
                 </button>
-              ) : null}
+              ) : (
+                /* Idle. This is a public demo jar, so say plainly where the
+                   money goes — a learner's first tip should not silently pay
+                   the author. Lives in the reserved slot, so it costs no
+                   layout and can never introduce a scrollbar. */
+                <div className="status__bar status__bar--note">
+                  <span>
+                    DEMO JAR — TIPS GO TO THE DEMO CREATOR · DEPLOY YOUR OWN TO
+                    REDIRECT
+                  </span>
+                </div>
+              )}
             </div>
             <TipWall total={jar.total} count={jar.count} />
           </div>

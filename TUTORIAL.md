@@ -31,12 +31,14 @@ mainnet; the transaction hashes are real.
 | Integration route | **Starknet Wallet API** via `starknet.js` |
 | Custom Cairo needed | **None** |
 | Contracts changed to add privacy | **0 files** |
-| App files changed to add privacy | **5** — `+255 / −33`, of which the only Starknet wiring is `app/src/hooks/useTipJar.ts` (the other four are UI) |
+| Core integration diff | **5 app files, `+255 / −33`** — only one holds Starknet wiring ([reproduce](#the-result)) |
+| See it yourself | [`v1-public…v2-private`](https://github.com/starkience/strk20-tipjar-example/compare/v1-public...v2-private) |
 | Built with | the [STRK20 agent skill](https://strk20-by-example.org/agent-skill) |
 | Key deps | `starknet@10.4.0`, `@starknet-io/get-starknet-discovery@6.0.2`, `@starknet-io/types-js@0.10.3`, `@avnu/avnu-sdk@4.2.0` |
 | Wallet requirement | Wallet API **≥ 0.10.3** (Ready today; Xverse in progress; Braavos unsupported) |
 | STRK20 pool (mainnet) | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a` |
 | Pool fee | flat, per private operation — **4 STRK** at time of writing |
+| **Cost to walk this tutorial once** | **~8 STRK** in pool fees (shield + private tip), or **~12 STRK** if you also do a private swap — plus the tip itself and gas. Mainnet only; see below. |
 | Note maturity | **~10 blocks** (~20s on mainnet) |
 
 Reference docs are published as raw Markdown for agents:
@@ -179,14 +181,18 @@ setPrivacySupported(await walletSupportsStrk20(wallet));
 Ask the wallet what it supports. Do **not** probe balances:
 
 ```ts
-// app/src/hooks/useTipJar.ts
+// app/src/hooks/useTipJar.ts — the I/O
 async function walletSupportsStrk20(wallet: WalletWithStarknetFeatures) {
   try {
-    const versions = await walletV6.supportedWalletApi(wallet);
-    return versions.some((v) => compareVersions(v, "0.10.3") >= 0);
+    return supportsStrk20(await walletV6.supportedWalletApi(wallet));
   } catch {
     return false;               // predates the method ⇒ not capable
   }
+}
+
+// app/src/lib/strk20.ts — the decision, pure
+export function supportsStrk20(versions: readonly string[]): boolean {
+  return versions.some((v) => compareVersions(v, "0.10.3") >= 0);
 }
 ```
 
@@ -204,15 +210,15 @@ place your app either earns or loses their trust.
 Here is the entire privacy feature:
 
 ```ts
+// app/src/lib/strk20.ts
+export function buildPrivateTipActions(
+  strkAddress: string, amount: bigint, recipient: string,
+): STRK20_ACTION[] {
+  return [{ type: "transfer", token: strkAddress,
+            amount: `0x${amount.toString(16)}`, recipient }];
+}
+
 // app/src/hooks/useTipJar.ts
-const actions: STRK20_ACTION[] = [
-  {
-    type: "transfer",
-    token: CONFIG.strkAddress,
-    amount: `0x${amount.toString(16)}`,
-    recipient: CONFIG.ownerAddress,
-  },
-];
 const { transaction_hash } = await account.strk20InvokeTransaction(actions);
 ```
 
@@ -223,9 +229,12 @@ the keys, finds the notes, generates the proof, and submits. Your app describes
 Shielding is the same call with a different action:
 
 ```ts
-const actions: STRK20_ACTION[] = [
-  { type: "deposit", token: token.address, amount: `0x${amount.toString(16)}` },
-];
+export function buildShieldActions(
+  tokenAddress: string, amount: bigint,
+): STRK20_ACTION[] {
+  return [{ type: "deposit", token: tokenAddress,
+            amount: `0x${amount.toString(16)}` }];
+}
 ```
 
 `STRK20_ACTION` comes from `@starknet-io/types-js` — the shapes are typed, so
@@ -274,17 +283,37 @@ SDK does underneath and where the boundary sits between app code and a
 team-owned, audited contract. It is **unaudited and not deployed** — a teaching
 artifact, not a dependency.
 
-> The paymaster needs an API key, and a key in a browser bundle is a public key.
-> The deployed app proxies it through [`app/api/paymaster.ts`](app/api/paymaster.ts).
+> **The paymaster needs an API key, and a key in a browser bundle is a public
+> key.** The deployed app proxies it through
+> [`app/api/paymaster.ts`](app/api/paymaster.ts) — a server-side function that
+> attaches `AVNU_PAYMASTER_API_KEY` (no `VITE_` prefix; that prefix is precisely
+> what inlines a value into the bundle).
+>
+> Assume you will get this wrong at least once, and check mechanically rather
+> than carefully. [`app/scripts/check-bundle.mjs`](app/scripts/check-bundle.mjs)
+> runs after every build and fails it if a secret appears in `dist/`. It earned
+> its place here: writing `const env = import.meta.env` instead of reading
+> `import.meta.env.X` directly is enough to leak the key, because aliasing the
+> object makes Vite inline *every* `VITE_` variable rather than dead-code
+> eliminating the one access it can prove unused.
 
 ---
 
 ## The result
 
-The complete cost of adding privacy to a live mainnet app — both phases, as
-`git diff --stat`:
+Two tags bracket the work — clone the repo and check any number below yourself:
 
+```bash
+git diff --stat v1-public v2-private -- contracts/src/tipjar.cairo   # empty
 ```
+
+**The public contract never changed.** Not one line. The deployed jar, its class
+hash, and every existing tipper's history are exactly as they were.
+
+The core integration — the wallet upgrade plus the private tip — is this:
+
+```console
+$ git diff --stat 249aafb 54b19f5 -- app/src
  app/src/App.css                |  57 ++++++++++++
  app/src/App.tsx                |  50 ++++++++--
  app/src/components/TipForm.tsx |  40 +++++---
@@ -293,14 +322,26 @@ The complete cost of adding privacy to a live mainnet app — both phases, as
  5 files changed, 255 insertions(+), 33 deletions(-)
 ```
 
-No entry under `contracts/`. Four of the five files are UI; one is wiring. The
-deployed jar, its class hash, and every existing tipper's history are untouched.
+Four of those five files are UI. One is Starknet wiring.
+
+The full [`v1-public…v2-private`](https://github.com/starkience/strk20-tipjar-example/compare/v1-public...v2-private)
+compare is larger, and honestly so: it also contains the reference anonymizer we
+wrote before finding that AVNU ships private swaps, and the commit that
+decoupled shield from transfer. **Privacy required none of the Cairo in that
+range** — it is a detour preserved on purpose, so you can see where the app-code
+boundary actually sits.
 
 Both paths deliver the same value to the creator. Verified on mainnet:
 
 - The creator's wallet shows **four private receives — +20, +20, +1, +1 = 42 STRK**.
 - The public jar's counter reads **3 tips / 3 STRK**, and the "LATEST TIPS" wall
   never moved.
+
+![The tip jar's public side: RAISED 3 STRK, PUBLIC TIPS 003](docs/images/app-public.png)
+
+That scoreboard is the evidence. It reads **3 STRK / 003** — and it stayed there
+while 42 STRK arrived in the creator's wallet. Everything the chain can tell you
+about the private tips is in that picture: nothing.
 
 **42 STRK arrived with no public trace.** A frozen public wall while the creator
 is actually being paid — that contrast is the whole point.

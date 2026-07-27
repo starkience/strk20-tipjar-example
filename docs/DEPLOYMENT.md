@@ -46,8 +46,54 @@ sncast --account <your_account> deploy \
 sncast call --contract-address <deployed_address> --function get_total --url <rpc_url>   # -> (0, 0)
 ```
 
-Then update `app/src/config.ts`: set `tipJarAddress`, `ownerAddress`, and
-`deployBlock` (the block of the deploy tx).
+Then point the app at it — either edit `app/src/config.ts`, or override without
+touching code by putting these in `app/.env.local`:
+
+```bash
+VITE_TIPJAR_ADDRESS=0x...     # your deployed jar
+VITE_OWNER_ADDRESS=0x...      # where tips land
+VITE_DEPLOY_BLOCK=123456      # block of the deploy tx (where event scanning starts)
+VITE_RPC_URL=https://...      # optional; defaults to a mainnet endpoint
+```
+
+Until you do, **the app tips the demo creator's wallet** — it says so in its own
+footer, but it is worth knowing before your first click.
+
+## Running on Sepolia
+
+Short answer: **the public half moves easily, the private half depends on your
+wallet — and we have not verified it.** Here is the precise situation, because
+it is a genuinely instructive detail about the Wallet API route.
+
+A Sepolia STRK20 pool does exist:
+
+```
+0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91
+```
+
+**But this app never uses a pool address, on any network.** `shield` and
+`sendPrivateTip` call `strk20InvokeTransaction(actions)` and nothing else — the
+connected wallet selects the pool for the network it is on. That address comes
+from the **wallet-builder SDK** docs, where you configure a pool yourself; it is
+not something a Wallet-API dapp passes in.
+
+So switching networks splits into two independent questions:
+
+| Half | What it needs | Status |
+| --- | --- | --- |
+| **Public** (jar, tips, balances) | a Sepolia RPC, a jar deployed on Sepolia, Sepolia token addresses | ✅ supported — set the env vars above |
+| **Private** (shield, private tip) | your wallet to support STRK20 **on Sepolia** | ⚠️ **unverified here** — ask your wallet vendor |
+| **Private swap** | AVNU's Sepolia paymaster (`https://sepolia.paymaster.avnu.fi`) and Sepolia routes | ⚠️ unverified; the proxy in `app/api/paymaster.ts` currently pins mainnet |
+
+To try it: deploy a jar to Sepolia with the commands above, set the four env
+vars, and switch your wallet to Sepolia. If the PRIVATE toggle stays disabled,
+that is the capability check doing its job — `supportedWalletApi` is telling you
+the wallet has no STRK20 on that network, which is exactly the graceful
+degradation the app is built to show.
+
+**This is why the tutorial is mainnet-only.** Walking it costs ~8 STRK in pool
+fees (~12 with a swap), which is real money — worth stating plainly rather than
+implying a free testnet path exists when we have not confirmed one end to end.
 
 ## Deployment notes (Starknet tooling)
 

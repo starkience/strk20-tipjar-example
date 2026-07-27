@@ -92,15 +92,16 @@ strk20-tipjar-example/
 ├── README.md                     ← you are here
 ├── AGENTS.md                     ← orientation for coding agents (commands, conventions)
 ├── STRK20_INTEGRATION_PLAN.md    ← the plan the agent skill generated
-├── contracts/                    ← Cairo (Scarb + Starknet Foundry) — 11 tests
+├── contracts/                    ← Cairo (Scarb + Starknet Foundry)
 │   ├── src/tipjar.cairo          ← the TipJar contract (public tipping)
 │   ├── src/mock_erc20.cairo      ← test-only ERC-20
 │   ├── src/avnu_swap_anonymizer.cairo  ← REFERENCE anonymizer (not audited, not deployed)
 │   ├── src/avnu_models.cairo     ← AVNU v2 Route types, vendored
 │   └── src/mock_avnu_exchange.cairo    ← test-only AVNU stand-in
-├── app/                          ← React + TypeScript + Vite — 16 tests
+├── app/                          ← React + TypeScript + Vite
 │   ├── src/config.ts             ← all on-chain addresses live here
 │   ├── src/hooks/useTipJar.ts    ← ALL the Starknet wiring (connect, shield, swap, tip)
+│   ├── src/lib/strk20.ts         ← the STRK20 action shapes, pure + unit-tested
 │   ├── src/lib/tokens.ts         ← token list + batched public balance reads
 │   ├── src/lib/tipjar.ts         ← pure helpers: calldata, amounts, event decoding
 │   ├── src/lib/errors.ts         ← protocol codes → plain language
@@ -116,6 +117,7 @@ strk20-tipjar-example/
 **Where to look first, by question:**
 - *"How does a public tip work end to end?"* → `contracts/src/tipjar.cairo`, then `app/src/hooks/useTipJar.ts`
 - *"How is STRK20 added?"* → [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md)
+- *"Just show me the privacy calls"* → `app/src/lib/strk20.ts` (~70 lines, all of it)
 - *"How does the private swap work?"* → `privateSwapToStrk` in `app/src/hooks/useTipJar.ts`
 - *"What's deployed and where?"* → [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) and `app/src/config.ts`
 
@@ -167,8 +169,8 @@ a browser app is publicly readable, so the key is kept server-side:
   and forwards to AVNU, so the key never reaches the browser.
 
 ```bash
-cd contracts && scarb build && snforge test    # 11 passing
-cd app && npm test                             # 16 passing
+cd contracts && scarb build && snforge test    # Cairo unit + integration tests
+cd app && npm test                             # pure-helper unit tests
 ```
 
 **Deploy your own jar** (so tips go to *your* address): see

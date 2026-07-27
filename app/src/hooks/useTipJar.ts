@@ -8,14 +8,8 @@
 // degrade gracefully on wallets without STRK20 support.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  compareVersions,
-  RpcProvider,
-  WalletAccountV6,
-  walletV6,
-} from "starknet";
+import { RpcProvider, WalletAccountV6, walletV6 } from "starknet";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
-import type { STRK20_ACTION } from "@starknet-io/types-js";
 import {
   createStrk20WalletProver,
   executePrivateSwap,
@@ -25,6 +19,11 @@ import {
 import { CONFIG, POOL_FEE_STRK, STRK, TOKENS, type Token } from "../config";
 import { fetchAllowance, fetchBalances, fetchTokens } from "../lib/tokens";
 import { friendlyError } from "../lib/errors";
+import {
+  buildPrivateTipActions,
+  buildShieldActions,
+  supportsStrk20,
+} from "../lib/strk20";
 import {
   buildTipCalls,
   formatUnits,
@@ -90,8 +89,7 @@ async function walletSupportsStrk20(
   wallet: WalletWithStarknetFeatures,
 ): Promise<boolean> {
   try {
-    const versions = await walletV6.supportedWalletApi(wallet);
-    return versions.some((v) => compareVersions(v, "0.10.3") >= 0);
+    return supportsStrk20(await walletV6.supportedWalletApi(wallet));
   } catch {
     return false;
   }
@@ -332,13 +330,7 @@ export function useTipJar(opts?: {
       setTxPending(true);
       try {
         const amount = parseUnits(amountStr, token.decimals);
-        const actions: STRK20_ACTION[] = [
-          {
-            type: "deposit",
-            token: token.address,
-            amount: `0x${amount.toString(16)}`,
-          },
-        ];
+        const actions = buildShieldActions(token.address, amount);
         const { transaction_hash } =
           await account.strk20InvokeTransaction(actions);
         onTxRef.current?.("SHIELD", transaction_hash, `${amountStr} ${token.symbol}`);
@@ -475,14 +467,11 @@ export function useTipJar(opts?: {
       setError(null);
       setTxPending(true);
       try {
-        const actions: STRK20_ACTION[] = [
-          {
-            type: "transfer",
-            token: CONFIG.strkAddress,
-            amount: `0x${amount.toString(16)}`,
-            recipient: CONFIG.ownerAddress,
-          },
-        ];
+        const actions = buildPrivateTipActions(
+          CONFIG.strkAddress,
+          amount,
+          CONFIG.ownerAddress,
+        );
         const { transaction_hash } =
           await account.strk20InvokeTransaction(actions);
         onTxRef.current?.("PRIVATE TIP", transaction_hash, `${amountStrk} STRK`);
