@@ -10,11 +10,12 @@ app. It has two parts:
 
 1. **Part 1 (done):** a public tip jar — `TipJar` Cairo contract + React
    frontend, live on Starknet mainnet.
-2. **Part 2 (built, live-verification pending):** a **private** tipping path via
-   the STRK20 Wallet API, added with the STRK20 agent skill. The `sendPrivateTip`
-   action in `app/src/hooks/useTipJar.ts` is a batched `deposit` + `transfer`;
-   it touches no contract and reads no balances. Every step is logged in
-   [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md).
+2. **Part 2 (built):** a **private** tipping path via the STRK20 Wallet API,
+   added with the STRK20 agent skill. It is deliberately **decoupled** —
+   `shield()`, then a maturity wait, then an optional `privateSwapToStrk()` (AVNU
+   SDK), then a transfer-only `sendPrivateTip()`. Bundling the shield into the
+   tip would correlate the public deposit with the private transfer, so don't.
+   Every step is logged in [`docs/STRK20_INTEGRATION.md`](docs/STRK20_INTEGRATION.md).
 
 Optimize every change for a reader trying to learn *how STRK20 is integrated*.
 Clarity and comments matter more than cleverness.
@@ -27,23 +28,26 @@ Clarity and comments matter more than cleverness.
 | `contracts/src/mock_erc20.cairo` | Test-only ERC-20 for unit tests. Not deployed to mainnet. |
 | `contracts/src/avnu_swap_anonymizer.cairo` | **Advanced/reference.** Private swap-tip helper (`privacy_invoke`). Moves funds — **not audited, do not deploy to mainnet.** See [`docs/ANONYMIZER.md`](docs/ANONYMIZER.md). |
 | `contracts/src/mock_avnu_exchange.cairo` | Test-only mock AVNU exchange. |
-| `contracts/tests/` | `snforge` tests (10). |
+| `contracts/tests/` | `snforge` tests (11). |
 | `app/src/config.ts` | **All** on-chain addresses and network config. Single source of truth. |
 | `app/src/hooks/useTipJar.ts` | All Starknet wiring: connect, read totals/events, send the tip multicall. |
-| `app/src/lib/tipjar.ts` | Pure helpers (calldata, STRK parsing, event decoding). Unit-tested. |
-| `app/src/components/` | `TipForm`, `TipWall`. Presentation only. |
+| `app/src/lib/tipjar.ts` | Pure helpers (calldata, amounts, event decoding). Unit-tested. |
+| `app/src/lib/tokens.ts` | Token list (AVNU verified) + batched public balance reads. |
+| `app/src/lib/errors.ts` | Protocol error codes → plain language. |
+| `app/src/lib/address.ts` | Felt address normalization — compare with these, not `===`. |
+| `app/src/components/` | `Stepper`, `TokenSelect`, `Pills`, `TipForm`, `TxLog`, `ModeToggle`. Presentation only. |
 | `docs/` | Architecture, deployment record, and the STRK20 integration log. |
 
 ## Commands
 
 ```bash
 # Contracts (Scarb 2.16, Starknet Foundry 0.56)
-cd contracts && scarb build && snforge test      # 7 tests
+cd contracts && scarb build && snforge test      # 11 tests
 
 # Frontend (Node 20+)
 cd app && npm install
 npm run dev        # http://localhost:5173
-npm test           # vitest — pure-helper unit tests
+npm test           # vitest — 16 pure-helper unit tests
 npm run build      # tsc -b && vite build (also the typecheck gate)
 ```
 
