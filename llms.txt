@@ -1,0 +1,39 @@
+# STRK20 Tip Jar
+
+> A worked example of adding Starknet Privacy (STRK20) to an app that already exists. It starts as an ordinary public tip jar deployed on Starknet mainnet and gains a private tipping path beside the public one, over the Starknet Wallet API, with zero changes to the deployed contract. Every file below is raw Markdown or source, fetchable as-is.
+
+Read TUTORIAL.md first if you want to understand the integration; read AGENTS.md first if you are changing the code. The two tags `v1-public` and `v2-private` bracket the whole integration, so any claim about its size is checkable with `git diff`.
+
+## Start here
+
+- [TUTORIAL.md](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/TUTORIAL.md): The walkthrough end to end - the ordinary app, the problem shown on-chain, privacy added with the agent skill, then how to design the UX around it.
+- [README.md](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/README.md): What the repo is, the live mainnet addresses, quick start, and what to design for.
+- [AGENTS.md](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/AGENTS.md): Orientation for changing the code - layout, commands, and the conventions that have tests behind them.
+
+## The integration
+
+- [app/src/lib/strk20.ts](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/app/src/lib/strk20.ts): The whole privacy surface in ~70 lines - the STRK20 action shapes plus capability detection, pure and unit-tested. Start here to see what STRK20 costs in code.
+- [app/src/lib/strk20.test.ts](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/app/src/lib/strk20.test.ts): The tests that pin the two decisions worth pinning: a private tip is a lone transfer and never bundles a deposit, and capability detection touches no private state.
+- [app/src/hooks/useTipJar.ts](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/app/src/hooks/useTipJar.ts): All Starknet wiring - connect, shield, private swap, private tip, public tip, and the maturity countdown.
+- [app/src/config.ts](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/app/src/config.ts): Every on-chain address and network setting, and why server-side keys must not carry a VITE_ prefix.
+- [app/api/paymaster.ts](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/app/api/paymaster.ts): Server-side proxy for AVNU's paymaster, so the API key never reaches the browser.
+
+## Contracts
+
+- [contracts/src/tipjar.cairo](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/contracts/src/tipjar.cairo): The public tip jar. Non-custodial, one entrypoint, and unchanged by the privacy work.
+- [docs/ANONYMIZER.md](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/docs/ANONYMIZER.md): A reference privacy_invoke anonymizer, and when you would actually need one. Not audited, not deployed - AVNU ships private swaps, so this app needs none.
+
+## Records
+
+- [docs/STRK20_INTEGRATION.md](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/docs/STRK20_INTEGRATION.md): The integration log, phase by phase, including the mainnet evidence and the design that was built one way and shipped another.
+- [docs/ARCHITECTURE.md](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/docs/ARCHITECTURE.md): How the pieces fit and what STRK20 changes.
+- [docs/DEPLOYMENT.md](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/docs/DEPLOYMENT.md): The live mainnet deployment, how to deploy your own jar, and what running on Sepolia would take.
+- [STRK20_INTEGRATION_PLAN.md](https://raw.githubusercontent.com/starkience/strk20-tipjar-example/main/STRK20_INTEGRATION_PLAN.md): The plan the STRK20 agent skill generated, kept with its corrections visible rather than rewritten.
+
+## Optional
+
+- [Live demo](https://app-chi-three-39.vercel.app): The app running on Starknet mainnet.
+- [v1-public...v2-private](https://github.com/starkience/strk20-tipjar-example/compare/v1-public...v2-private): The entire integration as one diff.
+- [Tip Jar on STRK20 by Example](https://strk20-by-example.org/app/tip-jar.md): This example written up in the official docs.
+- [STRK20 agent skill](https://github.com/starkience/strk20-agent-skills): The skill that planned and built the integration.
+- [STRK20 by Example](https://strk20-by-example.org/llms.txt): The protocol documentation, agent-readable.

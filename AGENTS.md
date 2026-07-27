@@ -3,6 +3,9 @@
 Orientation for coding agents (and humans in a hurry) working in this repo.
 Read this before making changes.
 
+Fetching this repo programmatically? [`llms.txt`](llms.txt) indexes every
+document and key source file as raw URLs.
+
 **If you are here to learn how STRK20 is integrated, read
 [`TUTORIAL.md`](TUTORIAL.md) instead** — it is the deliverable this repo exists
 to carry. This file is for changing the code.

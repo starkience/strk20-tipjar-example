@@ -89,6 +89,7 @@ This is the single most important design decision in the repo, and
 ```
 strk20-tipjar-example/
 ├── TUTORIAL.md                   ← START HERE — the walkthrough, end to end
+├── llms.txt                      ← agent-readable index of every doc + key source file
 ├── README.md                     ← you are here
 ├── AGENTS.md                     ← orientation for coding agents (commands, conventions)
 ├── STRK20_INTEGRATION_PLAN.md    ← the plan the agent skill generated
