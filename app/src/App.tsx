@@ -110,10 +110,8 @@ export default function App() {
             <Stepper
               disabled={!jar.address}
               pending={jar.txPending}
-              balance={jar.shieldedBalance}
               blocksRemaining={jar.blocksRemaining}
               onShield={handleShield}
-              onCheckBalance={jar.readShieldedBalance}
               onTip={handlePrivateTip}
               tipButtonRef={tipButtonRef}
             />

@@ -47,9 +47,6 @@ export function useTipJar() {
   const [account, setAccount] = useState<WalletAccountV6 | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [privacySupported, setPrivacySupported] = useState(false);
-  // The user's own shielded balance — only populated when they explicitly ask
-  // (readShieldedBalance), since that read prompts the wallet for consent.
-  const [shieldedBalance, setShieldedBalance] = useState<bigint | null>(null);
   // Block of the last shield, and the chain head — together they drive the
   // maturity countdown (a note is spendable MATURITY_BLOCKS after creation).
   const [shieldedAtBlock, setShieldedAtBlock] = useState<number | null>(null);
@@ -85,7 +82,6 @@ export function useTipJar() {
     setAccount(null);
     setAddress(null);
     setPrivacySupported(false);
-    setShieldedBalance(null);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -191,27 +187,6 @@ export function useTipJar() {
     [account, privacySupported],
   );
 
-  // Read the user's OWN shielded balance — wallet-mediated, so it prompts for
-  // consent. Deliberately NOT called automatically: it runs only when the user
-  // explicitly asks, so the prompt is never a surprise. The dapp never sees a
-  // viewing key; the wallet returns only balances for the tokens we name.
-  const readShieldedBalance = useCallback(async () => {
-    if (!account) throw new Error("connect a wallet first");
-    setError(null);
-    try {
-      const entries = await account.strk20Balances([CONFIG.strkAddress]);
-      const entry = entries.find(
-        (e) => BigInt(e.token) === BigInt(CONFIG.strkAddress),
-      );
-      const bal = entry ? BigInt(entry.balance) : 0n;
-      setShieldedBalance(bal);
-      return bal;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      throw e;
-    }
-  }, [account]);
-
   // PRIVATE tip: a transfer-only action spending funds ALREADY shielded.
   //
   // Step 2 of the decoupled flow. Because there is no deposit leg, this
@@ -291,8 +266,6 @@ export function useTipJar() {
     sendTip,
     sendPrivateTip,
     shield,
-    shieldedBalance,
-    readShieldedBalance,
     blocksRemaining,
     tips,
     total,
