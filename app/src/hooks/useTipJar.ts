@@ -9,7 +9,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RpcProvider, WalletAccountV6, walletV6 } from "starknet";
-import { createStore } from "@starknet-io/get-starknet-discovery";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
 import type { STRK20_ACTION } from "@starknet-io/types-js";
 import { CONFIG } from "../config";
@@ -22,9 +21,6 @@ import {
 } from "../lib/tipjar";
 
 const provider = new RpcProvider({ nodeUrl: CONFIG.rpcUrl });
-// Created once so get-starknet starts listening for wallet-standard wallets
-// immediately (extensions can register after the page loads).
-const walletStore = createStore();
 
 // Capability check that NEVER touches balances or keys: ask the wallet which
 // Wallet-API versions it supports. STRK20 (the Privacy Wallet API) ships in
@@ -47,7 +43,6 @@ async function walletSupportsStrk20(
 export function useTipJar() {
   const [account, setAccount] = useState<WalletAccountV6 | null>(null);
   const [address, setAddress] = useState<string | null>(null);
-  const [wallets, setWallets] = useState<WalletWithStarknetFeatures[]>([]);
   const [privacySupported, setPrivacySupported] = useState(false);
   const [tips, setTips] = useState<TipEvent[]>([]);
   const [total, setTotal] = useState<bigint>(0n);
@@ -59,14 +54,14 @@ export function useTipJar() {
   // through. A ref updates immediately and blocks that. Prevents double-shields.
   const submittingRef = useRef(false);
 
-  // Connect to a specific discovered wallet, then probe STRK20 capability.
+  // Attach to the wallet the user picked in the get-starknet modal: build a
+  // WalletAccountV6 for sending, then check STRK20 capability.
   const selectWallet = useCallback(async (wallet: WalletWithStarknetFeatures) => {
     setError(null);
     try {
       const wa = await WalletAccountV6.connect(provider, wallet);
       setAccount(wa);
       setAddress(wa.address);
-      setWallets([]);
       // Detect STRK20 support via the wallet's advertised Wallet-API versions —
       // no balance query, no viewing key, no private data read.
       setPrivacySupported(await walletSupportsStrk20(wallet));
@@ -75,21 +70,12 @@ export function useTipJar() {
     }
   }, []);
 
-  // Open the picker: discover wallets via get-starknet v6. Auto-connect when
-  // there is exactly one; otherwise expose the list for the UI to choose from.
-  const connectWallet = useCallback(async () => {
-    setError(null);
-    const found = walletStore.getWallets();
-    if (found.length === 0) {
-      setError("No Starknet wallet found. Install the Ready extension for private tips.");
-      return;
-    }
-    if (found.length === 1) {
-      await selectWallet(found[0]);
-    } else {
-      setWallets(found);
-    }
-  }, [selectWallet]);
+  // Called when the modal reports a disconnect.
+  const clearWallet = useCallback(() => {
+    setAccount(null);
+    setAddress(null);
+    setPrivacySupported(false);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!CONFIG.tipJarAddress) return; // not deployed yet
@@ -202,9 +188,8 @@ export function useTipJar() {
 
   return {
     address,
-    wallets,
-    connectWallet,
     selectWallet,
+    clearWallet,
     privacySupported,
     sendTip,
     sendPrivateTip,

@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { WalletConnectModal, useConnect } from "@starknet-io/get-starknet-ui";
 import { useTipJar } from "./hooks/useTipJar";
 import { ModeToggle } from "./components/ModeToggle";
 import { FlowDiagram } from "./components/FlowDiagram";
@@ -12,10 +13,19 @@ import "./App.css";
 
 export default function App() {
   const jar = useTipJar();
+  // Wallet discovery + selection is handled by the standard get-starknet modal;
+  // we just react to which wallet it connected.
+  const { connected } = useConnect();
   const tipButtonRef = useRef<HTMLButtonElement>(null);
   const creatorRef = useRef<HTMLDivElement>(null);
   const [showLog, setShowLog] = useState(true);
   const [mode, setMode] = useState<"public" | "private">("public");
+
+  const { selectWallet, clearWallet } = jar;
+  useEffect(() => {
+    if (connected) void selectWallet(connected);
+    else clearWallet();
+  }, [connected, selectWallet, clearWallet]);
 
   // Fall back to public if the connected wallet can't do STRK20.
   const isPrivate = mode === "private" && jar.privacySupported;
@@ -32,8 +42,6 @@ export default function App() {
     launchCoinFlight(tipButtonRef.current, creatorRef.current);
     return result;
   };
-
-  const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
   return (
     <div className="screen">
@@ -55,25 +63,9 @@ export default function App() {
               >
                 {showLog ? "HIDE" : "LOG"}
               </button>
-              <button className="btn btn--connect" onClick={jar.connectWallet}>
-                {jar.address ? shortAddr(jar.address) : "CONNECT"}
-              </button>
+              <WalletConnectModal buttonClassName="btn btn--connect" />
             </div>
           </header>
-
-          {jar.wallets.length > 0 && !jar.address && (
-            <div className="wallet-picker">
-              {jar.wallets.map((w) => (
-                <button
-                  key={w.name}
-                  className="btn btn--connect"
-                  onClick={() => jar.selectWallet(w)}
-                >
-                  {w.name}
-                </button>
-              ))}
-            </div>
-          )}
 
           <ModeToggle
             mode={mode}

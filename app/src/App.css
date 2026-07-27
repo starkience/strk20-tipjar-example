@@ -138,12 +138,6 @@
   box-shadow: 0 5px 0 #000;
 }
 
-.wallet-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 /* ---- PUBLIC / PRIVATE toggle ----------------------------------------- */
 .mode-toggle {
   display: flex;
