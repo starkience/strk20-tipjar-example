@@ -15,7 +15,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { POOL_FEE_STRK, STRK, type Token } from "../config";
 import { sameAddress } from "../lib/address";
-import { formatDisplay, parseUnits, toInputAmount } from "../lib/tipjar";
+import { formatDisplay, toInputAmount } from "../lib/tipjar";
 import { TokenSelect } from "./TokenSelect";
 import { Pills } from "./Pills";
 
@@ -123,17 +123,11 @@ export function Stepper(props: {
   const shieldedOf = (t: Token) => props.shieldedBalances?.[t.address];
   const needsApproval = props.approved[token.address] === false;
 
-  // The pool fee is charged in STRK, so it only eats into the shielded amount
-  // when STRK itself is what is being shielded.
-  const netShielded = (() => {
-    if (!isStrk) return null;
-    try {
-      const net = parseUnits(shieldAmount, token.decimals) - POOL_FEE_STRK;
-      return formatDisplay(net > 0n ? net : 0n, token.decimals);
-    } catch {
-      return null;
-    }
-  })();
+  // Deliberately not predicting the split. Observed wallet prompts itemise the
+  // pool fee differently per token — added on top for STRK, taken out of the
+  // amount (converted) for USDC — so any net figure the app computes would be
+  // wrong half the time. The wallet states the exact numbers before you
+  // confirm; the UI's job is to make sure the fee is never a surprise.
 
   // What is actually tippable once the pool fee is set aside.
   const tippable = (() => {
@@ -206,12 +200,10 @@ export function Stepper(props: {
         <p className="step__hint">
           {needsApproval && (
             <span className="step__fee">
-              FIRST {token.symbol} SHIELD NEEDS AN APPROVAL — TWO PROMPTS ·{" "}
+              NEEDS AN APPROVAL FIRST — TWO PROMPTS ·{" "}
             </span>
           )}
-          {netShielded !== null
-            ? `YOU GET ${netShielded} ${token.symbol} AFTER THE ${POOL_FEE_LABEL} STRK POOL FEE`
-            : "A POOL FEE APPLIES, CHARGED IN STRK"}
+          {`PLUS A POOL FEE (~${POOL_FEE_LABEL} STRK, CONVERTED FOR OTHER TOKENS) — YOUR WALLET SHOWS THE EXACT SPLIT`}
         </p>
       </Step>
 

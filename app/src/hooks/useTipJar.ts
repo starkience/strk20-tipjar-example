@@ -190,6 +190,9 @@ export function useTipJar(opts?: {
         PRIVACY_POOL_ADDRESS,
       );
       if (allowance === null) return;
+      // Each deposit spends the allowance it was given, so this is not a
+      // one-time setup: a fresh approve is needed whenever the remaining
+      // allowance no longer covers the amount being shielded.
       setApproved((a) => ({ ...a, [token.address]: allowance > 0n }));
     },
     [address],
