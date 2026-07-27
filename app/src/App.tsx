@@ -165,6 +165,8 @@ export default function App() {
                 pending={jar.txPending}
                 blocksRemaining={jar.blocksRemaining}
                 publicBalances={jar.publicBalances}
+                approved={jar.approved}
+                onCheckApproval={jar.checkApproval}
                 shieldedBalances={jar.shieldedBalances}
                 tokens={jar.tokens}
                 onShield={handleShield}

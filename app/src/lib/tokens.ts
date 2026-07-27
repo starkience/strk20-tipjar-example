@@ -89,3 +89,49 @@ export async function fetchBalances(
   }
   return out;
 }
+
+/** sn_keccak("allowance") */
+const ALLOWANCE =
+  "0x01e888a1026b19c8c0b57c72d63ed1737106aa10034105b980ba117bd0c29fe1";
+
+/**
+ * How much of `token` the owner has already approved the pool to pull.
+ *
+ * A deposit needs an on-chain ERC-20 `approve` before it can be proven, and
+ * that is a separate transaction — so the FIRST shield of a token costs two
+ * wallet prompts and takes noticeably longer than later ones. Reading the
+ * allowance (public data, no wallet call) lets the UI say so up front instead
+ * of leaving users wondering why the first attempt seemed to stall.
+ */
+export async function fetchAllowance(
+  rpcUrl: string,
+  owner: string,
+  token: string,
+  spender: string,
+): Promise<bigint | null> {
+  try {
+    const res = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "starknet_call",
+        params: [
+          {
+            contract_address: token,
+            entry_point_selector: ALLOWANCE,
+            calldata: [owner, spender],
+          },
+          "latest",
+        ],
+      }),
+    });
+    const json = await res.json();
+    const out = json?.result;
+    if (!Array.isArray(out)) return null;
+    return BigInt(out[0]) + (BigInt(out[1] ?? "0x0") << 128n);
+  } catch {
+    return null;
+  }
+}

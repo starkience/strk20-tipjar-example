@@ -92,6 +92,8 @@ export function Stepper(props: {
   pending: boolean;
   blocksRemaining: number | null;
   publicBalances: Record<string, bigint>;
+  approved: Record<string, boolean>;
+  onCheckApproval: (token: Token) => Promise<void> | void;
   shieldedBalances: Record<string, bigint> | null;
   tokens: Token[];
   onShield: (token: Token, amount: string) => Promise<unknown>;
@@ -116,6 +118,12 @@ export function Stepper(props: {
     (t) => (props.publicBalances[t.address] ?? 0n) > 0n,
   );
   const available = held.length > 0 ? held : props.tokens;
+
+  // Check approval whenever the selected token changes — public read, no prompt.
+  const { onCheckApproval } = props;
+  useEffect(() => {
+    void onCheckApproval(token);
+  }, [token, onCheckApproval]);
 
   useEffect(() => {
     if (!available.some((t) => sameAddress(t.address, token.address))) {
@@ -264,6 +272,14 @@ export function Stepper(props: {
             {isStrk ? `−${POOL_FEE_LABEL} STRK FEE` : "− POOL FEE"}
           </span>
         </div>
+        {props.approved[token.address] === false && (
+          <div className="step__note">
+            <span className="step__fee">
+              FIRST {token.symbol} SHIELD ALSO NEEDS AN APPROVAL — EXPECT TWO
+              PROMPTS
+            </span>
+          </div>
+        )}
         <div className="step__note">
           <span className="step__note-label">PUBLIC</span>
           {balance !== undefined ? (

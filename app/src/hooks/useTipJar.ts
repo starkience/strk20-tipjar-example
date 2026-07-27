@@ -23,7 +23,7 @@ import {
   PRIVACY_POOL_ADDRESS,
 } from "@avnu/avnu-sdk";
 import { CONFIG, STRK, TOKENS, type Token } from "../config";
-import { fetchBalances, fetchTokens } from "../lib/tokens";
+import { fetchAllowance, fetchBalances, fetchTokens } from "../lib/tokens";
 import { friendlyError } from "../lib/errors";
 import {
   buildTipCalls,
@@ -122,6 +122,9 @@ export function useTipJar(opts?: {
   const [publicBalances, setPublicBalances] = useState<Record<string, bigint>>(
     {},
   );
+  // Tokens the pool is already approved to pull. A token missing here needs an
+  // approve first, which is a second wallet prompt and a slower first shield.
+  const [approved, setApproved] = useState<Record<string, boolean>>({});
   // The user's SHIELDED balances, keyed by token address. Populated only when
   // they explicitly ask (step 2) — reading these is wallet-mediated and prompts
   // for consent, so it never happens on its own.
@@ -174,6 +177,22 @@ export function useTipJar(opts?: {
   );
 
   const dismissError = useCallback(() => setError(null), []);
+
+  /** Public read — no wallet call. Tells the UI whether a shield needs approving. */
+  const checkApproval = useCallback(
+    async (token: Token) => {
+      if (!address) return;
+      const allowance = await fetchAllowance(
+        CONFIG.rpcUrl,
+        address,
+        token.address,
+        PRIVACY_POOL_ADDRESS,
+      );
+      if (allowance === null) return;
+      setApproved((a) => ({ ...a, [token.address]: allowance > 0n }));
+    },
+    [address],
+  );
 
   // Manual escape hatch for a wallet prompt that never comes back. This only
   // releases the UI — it cannot cancel a request the wallet may still be
@@ -493,6 +512,8 @@ export function useTipJar(opts?: {
     privateSwapToStrk,
     blocksRemaining,
     publicBalances,
+    approved,
+    checkApproval,
     tokens,
     shieldedBalances,
     readShieldedBalances,
