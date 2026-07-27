@@ -24,7 +24,14 @@ export default function App() {
       setSession((s) =>
         s.some((e) => e.hash === hash)
           ? s
-          : [{ kind, hash, time: Date.now(), detail, session: true }, ...s],
+          : [
+              { kind, hash, time: Date.now(), detail, session: true, status: "pending" },
+              ...s,
+            ],
+      ),
+    onTxStatus: (hash, status) =>
+      setSession((s) =>
+        s.map((e) => (e.hash === hash ? { ...e, status } : e)),
       ),
   });
   const { connected } = useConnect();
@@ -165,27 +172,28 @@ export default function App() {
           </div>
 
           <div className="cabinet__foot">
+            {/* Reserved slot: always occupies the same height, so a status
+                message never overlaps the scoreboard or resizes the frame. */}
+            <div className="status">
+              {jar.txPending ? (
+                <div className="status__bar status__bar--pending">
+                  <span>WAITING FOR WALLET…</span>
+                  <button className="status__action" onClick={jar.cancelPending}>
+                    CANCEL
+                  </button>
+                </div>
+              ) : jar.error ? (
+                <button
+                  className="status__bar status__bar--error"
+                  onClick={jar.dismissError}
+                  title="Dismiss"
+                >
+                  {jar.error}
+                </button>
+              ) : null}
+            </div>
             <TipWall total={jar.total} count={jar.count} />
           </div>
-
-          {jar.txPending && (
-            <div className="toast toast--pending">
-              <span>WAITING FOR WALLET…</span>
-              <button className="toast__action" onClick={jar.cancelPending}>
-                CANCEL
-              </button>
-            </div>
-          )}
-
-          {jar.error && !jar.txPending && (
-            <button
-              className="toast"
-              onClick={jar.dismissError}
-              title="Dismiss"
-            >
-              {jar.error}
-            </button>
-          )}
         </main>
 
         {showLog && <TxLog entries={entries} onClose={() => setShowLog(false)} />}

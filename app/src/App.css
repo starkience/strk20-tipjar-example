@@ -781,3 +781,66 @@
 .toast__action:hover {
   background: var(--gold-lit);
 }
+
+/* ---- Status slot -----------------------------------------------------
+   Always present at a fixed height so a message can neither overlap the
+   scoreboard nor resize the cabinet. */
+.status {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+.status__bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--display);
+  font-size: 9px;
+  line-height: 1.5;
+  text-align: left;
+  border: 3px solid var(--ink);
+  padding: 8px 10px;
+  max-height: 36px;
+  overflow: hidden;
+}
+.status__bar--pending {
+  background: var(--ink);
+  color: var(--gold-lit);
+}
+.status__bar--error {
+  background: var(--red);
+  color: #fff;
+  cursor: pointer;
+}
+.status__bar--error:hover {
+  background: #c72b26;
+}
+.status__action {
+  font-family: var(--display);
+  font-size: 9px;
+  color: var(--ink);
+  background: var(--gold);
+  border: 2px solid var(--gold-lit);
+  padding: 4px 9px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.status__action:hover {
+  background: var(--gold-lit);
+}
+
+/* Reverted transactions must not read as successful */
+.txlog__row.is-reverted {
+  background: #fff1f0;
+  border-color: var(--red);
+}
+.txlog__status {
+  font-family: var(--display);
+  font-size: 8px;
+  color: #71717a;
+}
+.txlog__status--bad {
+  color: var(--red);
+}

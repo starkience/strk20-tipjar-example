@@ -17,6 +17,8 @@ export type LogEntry = {
   detail?: string;
   /** Made in this session — highlighted so it stands out from chain history. */
   session?: boolean;
+  /** Outcome once known. A transaction can be accepted on-chain and still revert. */
+  status?: "pending" | "ok" | "reverted";
 };
 
 export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
@@ -82,9 +84,19 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
         {props.entries.map((e) => (
           <li
             key={e.hash}
-            className={`txlog__row ${e.session ? "is-session" : ""}`}
+            className={`txlog__row ${e.session ? "is-session" : ""} ${
+              e.status === "reverted" ? "is-reverted" : ""
+            }`}
           >
-            <span className="txlog__kind">{e.kind}</span>
+            <span className="txlog__kind">
+              {e.kind}
+              {e.status === "reverted" && (
+                <span className="txlog__status txlog__status--bad"> REVERTED</span>
+              )}
+              {e.status === "pending" && (
+                <span className="txlog__status"> PENDING</span>
+              )}
+            </span>
             {e.detail && <span className="txlog__detail">{e.detail}</span>}
             <a
               className="txlog__hash"

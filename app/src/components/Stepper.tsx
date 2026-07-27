@@ -184,7 +184,12 @@ export function Stepper(props: {
             <>
               {netShielded(lastShieldedAmount, subject) ?? lastShieldedAmount}{" "}
               {subject.symbol}
-              <span className="step__fee"> −{POOL_FEE_LABEL} FEE</span>
+              <span className="step__fee">
+                {" "}
+                {sameAddress(subject.address, STRK.address)
+                  ? `−${POOL_FEE_LABEL} FEE`
+                  : "− POOL FEE"}
+              </span>
             </>
           ) : undefined
         }
@@ -238,7 +243,9 @@ export function Stepper(props: {
           <span className="step__net">
             {shieldPreview ?? shieldAmount} {token.symbol}
           </span>
-          <span className="step__fee">−{POOL_FEE_LABEL} STRK FEE</span>
+          <span className="step__fee">
+            {isStrk ? `−${POOL_FEE_LABEL} STRK FEE` : "− POOL FEE"}
+          </span>
         </div>
         <div className="step__note">
           <span className="step__note-label">PUBLIC</span>
@@ -351,6 +358,25 @@ export function Stepper(props: {
       </Step>
 
       <Step n={5} label="TIP" state={s5}>
+        <div className="step__note">
+          <span className="step__note-label">SHIELDED</span>
+          <span className="step__net">
+            {props.shieldedBalances
+              ? `${formatDisplay(
+                  props.shieldedBalances[STRK.address] ?? 0n,
+                  STRK.decimals,
+                )} ${STRK.symbol}`
+              : "—"}
+          </span>
+          <button
+            className="step__max"
+            type="button"
+            disabled={props.disabled}
+            onClick={() => props.onShowShielded([STRK]).catch(() => {})}
+          >
+            SHOW
+          </button>
+        </div>
         <div className="step__row">
           <span className="field">
             <input

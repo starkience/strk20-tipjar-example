@@ -41,34 +41,41 @@ const provider = new RpcProvider({ nodeUrl: CONFIG.rpcUrl });
  * transactions can take a while to become visible to our RPC, and a hung await
  * would leave buttons disabled with no feedback.
  */
-/**
- * Bound a wallet request. A prompt that is dismissed without approving or
- * rejecting never settles its promise, which would otherwise leave `txPending`
- * true forever — every button disabled with no way back short of a reload.
- * Releasing the UI is the lesser evil, but the transaction may still be live,
- * so the message tells the user to check their wallet before retrying.
- */
-function withWalletTimeout<T>(p: Promise<T>, ms = 120_000): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) =>
-      setTimeout(
-        () => reject(new Error("WALLET_NO_RESPONSE")),
-        ms,
-      ),
-    ),
-  ]);
-}
+// Note: there is deliberately NO automatic timeout on wallet calls. Proving a
+// private transaction legitimately takes minutes, and auto-releasing the lock
+// mid-proof would re-enable the button while the request is still live — which
+// is how a user ends up submitting the same operation twice. The visible
+// CANCEL control is the escape hatch instead: a human decides, having been told
+// the request may still be in flight.
 
-async function settle(hash: string, ms = 60_000): Promise<void> {
+export type TxStatus = "pending" | "ok" | "reverted";
+
+/**
+ * Wait for confirmation and report what actually happened. A transaction can be
+ * accepted on-chain and still REVERT — the relayer retried our swap and the
+ * first attempt reverted in the same block — so "submitted" is not "worked".
+ * Never blocks forever: paymaster-relayed hashes can take a while to become
+ * visible, and an unbounded await would strand the UI.
+ */
+async function settle(hash: string, ms = 60_000): Promise<TxStatus> {
   try {
     await Promise.race([
       provider.waitForTransaction(hash),
       new Promise((resolve) => setTimeout(resolve, ms)),
     ]);
   } catch {
-    // Treat a wait failure as "submitted"; the log links to the explorer.
+    // waitForTransaction rejects on revert — the receipt below tells us which.
   }
+  try {
+    const receipt = (await provider.getTransactionReceipt(hash)) as {
+      execution_status?: string;
+    };
+    if (receipt?.execution_status === "REVERTED") return "reverted";
+    if (receipt?.execution_status === "SUCCEEDED") return "ok";
+  } catch {
+    // Not visible yet — leave it pending rather than claiming success.
+  }
+  return "pending";
 }
 
 /** Notes mature 10 blocks after creation — they cannot be spent before that. */
@@ -94,9 +101,13 @@ export type TxKind = "PUBLIC TIP" | "SHIELD" | "PRIVATE SWAP" | "PRIVATE TIP";
 export function useTipJar(opts?: {
   /** Called as soon as a transaction is submitted, before confirmation. */
   onTx?: (kind: TxKind, hash: string, detail?: string) => void;
+  /** Called once the outcome is known — a tx can be accepted yet REVERT. */
+  onTxStatus?: (hash: string, status: TxStatus) => void;
 }) {
   const onTxRef = useRef(opts?.onTx);
   onTxRef.current = opts?.onTx;
+  const onTxStatusRef = useRef(opts?.onTxStatus);
+  onTxStatusRef.current = opts?.onTxStatus;
   const [account, setAccount] = useState<WalletAccountV6 | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [privacySupported, setPrivacySupported] = useState(false);
@@ -129,8 +140,6 @@ export function useTipJar(opts?: {
   // React state lags a render, so a fast double-click can slip a second tx
   // through. A ref updates immediately and blocks that. Prevents double-shields.
   const submittingRef = useRef(false);
-  // Tokens the user last asked to reveal, so refreshes can repeat that query.
-  const shieldedQueryRef = useRef<Token[] | null>(null);
 
   // Public balances for every listed token, in ONE batched RPC request.
   const refreshPublicBalance = useCallback(
@@ -182,7 +191,6 @@ export function useTipJar(opts?: {
     setPrivacySupported(false);
     setPublicBalances({});
     setShieldedBalances(null);
-    shieldedQueryRef.current = null;
   }, []);
 
   const refresh = useCallback(async () => {
@@ -216,7 +224,6 @@ export function useTipJar(opts?: {
   // key, only the numbers for the tokens it names.
   const readShieldedBalances = useCallback(
     async (wanted: Token[]) => {
-      shieldedQueryRef.current = wanted;
       if (!account) throw new Error("connect a wallet first");
       setError(null);
       try {
@@ -240,13 +247,11 @@ export function useTipJar(opts?: {
     [account],
   );
 
-  // Re-read after an action the user took, but ONLY if they already chose to
-  // reveal balances — otherwise this would fire an unsolicited consent prompt.
-  const refreshShieldedIfShown = useCallback(async () => {
-    const wanted = shieldedQueryRef.current;
-    if (!wanted) return;
-    await readShieldedBalances(wanted).catch(() => {});
-  }, [readShieldedBalances]);
+  // Deliberately NO automatic refresh after actions. Ready re-prompts for
+  // consent on every strk20Balances call — it does not remember a previous
+  // grant — so refreshing "helpfully" after each shield or swap turned into a
+  // consent dialog after every operation. Reading balances stays strictly
+  // manual: it happens when the user presses SHOW, and at no other time.
 
   // PUBLIC tip: unchanged. approve + tip multicall through the normal account
   // API (WalletAccountV6 inherits `execute`), then wait and refresh.
@@ -264,11 +269,9 @@ export function useTipJar(opts?: {
           CONFIG.tipJarAddress,
           amount,
         );
-        const { transaction_hash } = await withWalletTimeout(
-          account.execute(calls),
-        );
+        const { transaction_hash } = await account.execute(calls);
         onTxRef.current?.("PUBLIC TIP", transaction_hash, `${amountStrk} STRK`);
-        await settle(transaction_hash);
+        onTxStatusRef.current?.(transaction_hash, await settle(transaction_hash));
         await refresh();
         void refreshPublicBalance(account.address);
         return transaction_hash;
@@ -311,17 +314,15 @@ export function useTipJar(opts?: {
             amount: `0x${amount.toString(16)}`,
           },
         ];
-        const { transaction_hash } = await withWalletTimeout(
-          account.strk20InvokeTransaction(actions),
-        );
+        const { transaction_hash } =
+          await account.strk20InvokeTransaction(actions);
         onTxRef.current?.("SHIELD", transaction_hash, `${amountStr} ${token.symbol}`);
-        await settle(transaction_hash);
+        onTxStatusRef.current?.(transaction_hash, await settle(transaction_hash));
         // Anchor the maturity countdown at the block the shield landed in.
         const head = await provider.getBlockNumber();
         setShieldedAtBlock(head);
         setCurrentBlock(head);
         void refreshPublicBalance(account.address);
-        void refreshShieldedIfShown();
         return transaction_hash;
       } catch (e) {
         setError(friendlyError(e));
@@ -331,7 +332,7 @@ export function useTipJar(opts?: {
         setTxPending(false);
       }
     },
-    [account, privacySupported, refreshPublicBalance, refreshShieldedIfShown],
+    [account, privacySupported, refreshPublicBalance],
   );
 
   // PRIVATE SWAP: trade a shielded token for shielded STRK, via AVNU.
@@ -371,8 +372,7 @@ export function useTipJar(opts?: {
         });
         if (!quote) throw new Error("no route found for this pair");
 
-        const { transactionHash } = await withWalletTimeout(
-          executePrivateSwap({
+        const { transactionHash } = await executePrivateSwap({
           quote,
           slippage: 0.05,
           takerAddress: account.address,
@@ -380,15 +380,13 @@ export function useTipJar(opts?: {
           feeMode: { poolFeeToken: STRK.address },
           prover: createStrk20WalletProver(account),
           paymasterApiKey: CONFIG.avnuPaymasterApiKey || undefined,
-          }),
-        );
+        });
         onTxRef.current?.(
           "PRIVATE SWAP",
           transactionHash,
           `${amountStr} ${token.symbol} → STRK`,
         );
-        await settle(transactionHash);
-        void refreshShieldedIfShown();
+        onTxStatusRef.current?.(transactionHash, await settle(transactionHash));
         return transactionHash;
       } catch (e) {
         setError(friendlyError(e));
@@ -398,7 +396,7 @@ export function useTipJar(opts?: {
         setTxPending(false);
       }
     },
-    [account, privacySupported, refreshShieldedIfShown],
+    [account, privacySupported],
   );
 
   // PRIVATE tip: a transfer-only action spending funds ALREADY shielded.
@@ -428,11 +426,10 @@ export function useTipJar(opts?: {
             recipient: CONFIG.ownerAddress,
           },
         ];
-        const { transaction_hash } = await withWalletTimeout(
-          account.strk20InvokeTransaction(actions),
-        );
+        const { transaction_hash } =
+          await account.strk20InvokeTransaction(actions);
         onTxRef.current?.("PRIVATE TIP", transaction_hash, `${amountStrk} STRK`);
-        await settle(transaction_hash);
+        onTxStatusRef.current?.(transaction_hash, await settle(transaction_hash));
         // No refresh(): a private tip emits no public event, so there is
         // nothing for the public wall to pick up — by design.
         return transaction_hash;
