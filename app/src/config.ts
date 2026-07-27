@@ -8,7 +8,11 @@ export type Token = {
   decimals: number;
 };
 
-/** Tokens a tipper can pay with. Addresses + decimals verified on mainnet. */
+/**
+ * Offline fallback only. The live list is fetched per-wallet from AVNU's
+ * verified tokens (see lib/tokens.ts) and filtered to what the user holds.
+ * Addresses + decimals verified on mainnet.
+ */
 export const TOKENS: Token[] = [
   {
     symbol: "STRK",
@@ -25,7 +29,7 @@ export const TOKENS: Token[] = [
   {
     symbol: "USDC",
     address:
-      "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8",
+      "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb",
     decimals: 6,
   },
   {

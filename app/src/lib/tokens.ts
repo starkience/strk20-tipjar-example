@@ -10,15 +10,18 @@
 // prompt — unlike shielded balances, which this app never reads.
 import type { Token } from "../config";
 
+// Every verified token (76 at time of writing, so one page covers it), ordered
+// most-traded first. We check the user's balance against all of them, so the
+// dropdown ends up showing whatever THIS wallet actually holds.
 const AVNU_TOKENS_URL =
-  "https://starknet.api.avnu.fi/v1/starknet/tokens?tag=Verified&size=60&sort=lastDailyVolumeUsd,desc";
+  "https://starknet.api.avnu.fi/v1/starknet/tokens?tag=Verified&size=200&sort=lastDailyVolumeUsd,desc";
 
 /** sn_keccak("balanceOf") */
 const BALANCE_OF = "0x02e4263afad30923c891518314c3c95dbe830a16874e8abc5777a9a20b54c76e";
 
 type AvnuToken = { address: string; symbol: string; decimals: number };
 
-/** Verified tokens, most-traded first. Falls back to the caller's defaults. */
+/** All verified (AVNU-routable) tokens. Falls back to the caller's defaults. */
 export async function fetchTokens(fallback: Token[]): Promise<Token[]> {
   try {
     const res = await fetch(AVNU_TOKENS_URL);
