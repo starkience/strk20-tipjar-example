@@ -70,6 +70,8 @@ export function Stepper(props: {
   const [swapAmount, setSwapAmount] = useState("5");
   const [tipAmount, setTipAmount] = useState("1");
   const [swapped, setSwapped] = useState(false);
+  // The token actually shielded, which may differ from the dropdown selection.
+  const [lastShielded, setLastShielded] = useState<Token | null>(null);
 
   // Only offer tokens the user actually holds. Before balances load (or if they
   // hold none) fall back to the full list so the control is never empty.
@@ -108,17 +110,10 @@ export function Stepper(props: {
   const balance = props.publicBalances[token.address];
   const checked = props.shieldedBalances !== null;
 
-  // Report every token, not just the selected one: after shielding all your
-  // USDC your PUBLIC USDC is 0, so a list keyed off public holdings would drop
-  // it exactly when you want to confirm it is shielded.
-  const shieldedRows = props.shieldedBalances
-    ? props.tokens
-        .filter((t) => (props.shieldedBalances![t.address] ?? 0n) > 0n)
-        .map((t) => ({
-          symbol: t.symbol,
-          text: formatDisplay(props.shieldedBalances![t.address]!, t.decimals),
-        }))
-    : [];
+  // Step 2 answers one question: did the shield land? So it reports the token
+  // that was actually shielded (falling back to the current selection before
+  // any shield), keeping the wallet query to a single token.
+  const subject = lastShielded ?? token;
 
   const s1: StepState = shieldedNow ? "done" : "active";
   const s2: StepState = checked ? "done" : "active";
@@ -154,7 +149,12 @@ export function Stepper(props: {
             className="btn btn--dark"
             type="button"
             disabled={props.disabled || props.pending}
-            onClick={() => props.onShield(token, shieldAmount).catch(() => {})}
+            onClick={() =>
+              props
+                .onShield(token, shieldAmount)
+                .then(() => setLastShielded(token))
+                .catch(() => {})
+            }
           >
             SHIELD
           </button>
@@ -185,20 +185,17 @@ export function Stepper(props: {
             className="btn btn--ghost"
             type="button"
             disabled={props.disabled}
-            onClick={() => props.onShowShielded(props.tokens).catch(() => {})}
+            onClick={() => props.onShowShielded([subject]).catch(() => {})}
           >
             SHOW
           </button>
           <span className="step__balances">
-            {!props.shieldedBalances
-              ? "—"
-              : shieldedRows.length === 0
-                ? "NONE"
-                : shieldedRows.map((r) => (
-                    <span key={r.symbol} className="step__bal">
-                      {r.text} {r.symbol}
-                    </span>
-                  ))}
+            {props.shieldedBalances
+              ? `${formatDisplay(
+                  props.shieldedBalances[subject.address] ?? 0n,
+                  subject.decimals,
+                )} ${subject.symbol}`
+              : "—"}
           </span>
         </div>
       </Step>
