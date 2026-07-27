@@ -59,6 +59,60 @@ const WALLET_MAP = [
   "................",
 ];
 
+const VAULT_PALETTE: Palette = {
+  K: "#1a1a1a", // outline
+  S: "#3f3f46", // steel body
+  D: "#6b7280", // steel highlight
+  Y: "#ffd23f", // gold dial
+};
+
+// 16x16 vault — the privacy pool: funds go in, nobody sees inside.
+const VAULT_MAP = [
+  "................",
+  ".KKKKKKKKKKKKKK.",
+  ".KSSSSSSSSSSSSK.",
+  ".KSDDDDDDDDDDSK.",
+  ".KSDSSSSSSSSDSK.",
+  ".KSDSSSYYSSSDSK.",
+  ".KSDSSYYYYSSDSK.",
+  ".KSDSSYYYYSSDSK.",
+  ".KSDSSSYYSSSDSK.",
+  ".KSDSSSSSSSSDSK.",
+  ".KSDDDDDDDDDDSK.",
+  ".KSSSSSSSSSSSSK.",
+  ".KKKKKKKKKKKKKK.",
+  "................",
+  "................",
+  "................",
+];
+
+const JAR_PALETTE: Palette = {
+  K: "#1a1a1a", // outline
+  Y: "#ffd23f", // rim
+  J: "#dbeef5", // glass
+  G: "#f5a623", // coins
+};
+
+// 16x16 tip jar — the public contract: everyone can see what's inside.
+const JAR_MAP = [
+  "................",
+  "................",
+  "....KKKKKKKK....",
+  "....KYYYYYYK....",
+  "...KKKKKKKKKK...",
+  "...KJJJJJJJJK...",
+  "...KJGGJJGGJK...",
+  "...KJJJJJJJJK...",
+  "...KJGGJJGGJK...",
+  "...KJJJJJJJJK...",
+  "...KJJGGGGJJK...",
+  "...KJJJJJJJJK...",
+  "...KKKKKKKKKK...",
+  "................",
+  "................",
+  "................",
+];
+
 function mapToSvg(map: string[], palette: Palette, size = 16): string {
   const rects: string[] = [];
   for (let y = 0; y < size; y++) {
@@ -76,3 +130,5 @@ function mapToSvg(map: string[], palette: Palette, size = 16): string {
 
 export const COIN_SVG = mapToSvg(COIN_MAP, COIN_PALETTE);
 export const WALLET_SVG = mapToSvg(WALLET_MAP, WALLET_PALETTE);
+export const VAULT_SVG = mapToSvg(VAULT_MAP, VAULT_PALETTE);
+export const JAR_SVG = mapToSvg(JAR_MAP, JAR_PALETTE);

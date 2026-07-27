@@ -41,9 +41,7 @@ export function TxLog(props: { tips: TipEvent[]; onClose: () => void }) {
         )}
       </ul>
 
-      <p className="txlog__note">
-        🔒 Private tips never appear here — only the creator's wallet sees them.
-      </p>
+      <p className="txlog__note">🔒 Private tips never appear here.</p>
     </aside>
   );
 }
