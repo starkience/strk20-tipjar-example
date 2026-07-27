@@ -14,9 +14,15 @@
 
 ## The goal
 
-The simple tip jar sends a tip in the same token. This module explores a harder
-feature: **tip in one token, and the creator privately receives another** — e.g.
-tip STRK, creator gets **USDC**, with the tipper→creator link hidden.
+The simple tip jar only moves STRK. This module explores a harder feature:
+**tip in ANY token, and the creator privately receives STRK** — the tipper pays
+in whatever they hold, the creator always gets one predictable asset, and the
+tipper→creator link stays hidden.
+
+Why STRK as the output: it matches the public tip path (so the creator's balance
+is consistent whichever way they're tipped), and it's the pool's own fee asset.
+The route is **pinned at deployment**, so a deployed helper is one fixed,
+auditable path — not a general-purpose swap engine.
 
 ## Why this needs an anonymizer contract (the DeFi boundary)
 
@@ -51,18 +57,25 @@ regardless of the venue's interface, fees, or return value.
 
 ## The contract — `contracts/src/avnu_swap_anonymizer.cairo`
 
-`privacy_invoke(avnu_exchange, sell_token, sell_amount, buy_token, buy_min_amount,
-routes, note_id) -> Span<OpenNoteDeposit>`:
+**Constructor:** `(avnu_exchange, out_token)` — both **pinned at deployment**
+(deploy with `out_token = STRK`). Callers cannot redirect the venue or the payout
+token; `get_route()` reads them back for verification.
 
-1. Validate inputs (non-zero exchange/tokens/amount).
+`privacy_invoke(sell_token, sell_amount, min_out, routes, note_id)
+-> Span<OpenNoteDeposit>`:
+
+1. Validate: non-zero `sell_token`/`sell_amount`, and `sell_token != out_token`
+   (`SAME_TOKEN` — selling STRK for STRK means you wanted a plain private
+   transfer, not this helper).
 2. `approve` AVNU to pull `sell_amount` of `sell_token` (the pool already
    withdrew it to this contract).
-3. Snapshot `buy_token` balance, call AVNU `multi_route_swap` with
-   `beneficiary = self` so the output lands here, snapshot again.
+3. Snapshot the `out_token` balance, call AVNU `multi_route_swap` with
+   `beneficiary = self` so the output lands here, snapshot again. `min_out` is
+   the slippage floor, quoted off-chain with `routes` via AVNU's routing API.
 4. `out_amount = balance_after - balance_before` (u256→u128, checked); revert if
    zero (`ZERO_OUT_AMOUNT`).
-5. `approve` the pool (the caller) to pull `out_amount` of `buy_token`.
-6. Return `[OpenNoteDeposit { note_id, token: buy_token, amount: out_amount }]`.
+5. `approve` the pool (the caller) to pull `out_amount` of `out_token`.
+6. Return `[OpenNoteDeposit { note_id, token: out_token, amount: out_amount }]`.
 
 Adapted from the public **Ekubo swap-anonymizer** reference
 ([monorepo](https://github.com/starkware-libs/starknet-privacy),
@@ -94,10 +107,11 @@ pre-audit:
 
 **Tested** (`contracts/tests/test_avnu_swap_anonymizer.cairo`, `snforge`, against
 `MockAvnuExchange`):
-- The full sandwich: input pulled, output measured by delta, pool approved,
-  correct `OpenNoteDeposit` returned.
+- The full sandwich, any-token→STRK: input pulled, output measured by delta,
+  pool approved, correct `OpenNoteDeposit` crediting **STRK** returned.
+- The pinned route is readable and enforced (`get_route()`).
 - `ZERO_OUT_AMOUNT` revert on a zero-output swap.
-- Input validation (`ZERO_SELL_AMOUNT`).
+- Input validation (`ZERO_SELL_AMOUNT`) and the `SAME_TOKEN` guard.
 
 **NOT tested here (integration + audit work, gated on mainnet/testnet):**
 - The real STRK20 pool calling `privacy_invoke` via `INVOKE_SELECTOR` and
@@ -116,17 +130,21 @@ invoke the anonymizer to fill it:
 
 ```ts
 // Pseudocode — verify against the WalletAccount guide + live pool before use.
-const routes = await avnu.getRoutes(sellToken, buyToken, amount); // AVNU API, off-chain
+// The tipper pays in sellToken; the creator receives STRK.
+const routes = await avnu.getRoutes(sellToken, STRK, amount); // AVNU API, off-chain
 await wallet.strk20InvokeTransaction([
   { type: "deposit",  token: sellToken, amount },
   // 'OPEN' creates open note #0, owned by the creator, to be filled by the invoke:
-  { type: "transfer", token: buyToken, amount: "OPEN", recipient: CREATOR },
+  { type: "transfer", token: STRK, amount: "OPEN", recipient: CREATOR },
   { type: "invoke",   contract: ANONYMIZER, calldata: [
-      AVNU_EXCHANGE, sellToken, amount, buyToken, minOut, ...encodeRoutes(routes),
+      sellToken, amount, minOut, ...encodeRoutes(routes),
       "${openNoteIds[0]}",   // the note_id arg — the wallet substitutes note #0's id
   ]},
 ]);
 ```
+
+Note the calldata no longer carries the exchange or the payout token — both are
+pinned in the deployed anonymizer.
 
 This is intentionally left as a documented recipe rather than shipped UI: it
 cannot be verified without the live pool, and shipping unverified fund-flow code
@@ -147,9 +165,12 @@ DEX). Don't imply otherwise in UI copy.
 
 1. **Audit** the contract — owner, budget, timing lined up before anything else.
    (This is now the primary blocker; the ABIs are verified above.)
-2. Supply the **deployed AVNU Exchange address** (per network) and integrate
-   AVNU's off-chain routing API to build the `routes` calldata. Optionally
-   depend on AVNU's package instead of the vendored `avnu_models`.
+2. Deploy pinned: constructor `(avnu_exchange, out_token)` with the **deployed
+   AVNU Exchange address** for the network and `out_token = STRK`
+   (`0x04718f5a…c938d` on mainnet). Verify with `get_route()`. Then integrate
+   AVNU's off-chain routing API to build the `routes` calldata + `min_out`
+   slippage floor. Optionally depend on AVNU's package instead of the vendored
+   `avnu_models`.
 3. **Integration-test against a local devnet** (no mainnet, pre-audit). The
    privacy monorepo ships an e2e harness that deploys the real pool + an
    anonymizer and runs the full withdraw→invoke→credit flow:
