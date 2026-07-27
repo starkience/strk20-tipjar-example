@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   buildTipCalls,
   formatDisplay,
+  toInputAmount,
+  parseUnits,
   parseStrk,
   formatStrk,
   parseTippedEvent,
@@ -111,5 +113,20 @@ describe("friendlyError — underscored protocol codes", () => {
     expect(friendlyError(new Error("INSUFFICIENT_BALANCE"))).toBe(
       "NOT ENOUGH BALANCE",
     );
+  });
+});
+
+describe("toInputAmount", () => {
+  it("truncates to 2 decimals so MAX never exceeds the balance", () => {
+    // 70.93540540755021576 must not become 70.94 — that is more than is held.
+    expect(toInputAmount(70935405407550215760n, 18)).toBe("70.93");
+    expect(toInputAmount(5000000000000000000n, 18)).toBe("5");
+  });
+  it("keeps small balances usable instead of truncating them to zero", () => {
+    expect(toInputAmount(5000n, 8)).toBe("0.00005"); // 0.00005 WBTC
+  });
+  it("round-trips back into a parseable amount", () => {
+    const v = 70935405407550215760n;
+    expect(parseUnits(toInputAmount(v, 18), 18) <= v).toBe(true);
   });
 });

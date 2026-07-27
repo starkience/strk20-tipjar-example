@@ -54,6 +54,20 @@ export function formatDisplay(value: bigint, decimals: number): string {
   return n.toPrecision(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
+/**
+ * Amount to pre-fill an input with: at most 2 decimals, TRUNCATED rather than
+ * rounded — rounding up would put more than you hold into the box, so MAX would
+ * fail after you'd already signed. Falls back to full precision when truncating
+ * would collapse a small balance to zero (0.00005 WBTC).
+ */
+export function toInputAmount(value: bigint, decimals: number): string {
+  if (value === 0n) return "0";
+  const keep = Math.min(2, decimals);
+  const scale = 10n ** BigInt(decimals - keep);
+  const truncated = (value / scale) * scale;
+  return formatUnits(truncated === 0n ? value : truncated, decimals);
+}
+
 /** "1.5" -> 1500000000000000000n. Throws on empty/negative/non-numeric input. */
 export function parseStrk(input: string): bigint {
   const m = /^(\d+)(?:\.(\d{1,18}))?$/.exec(input.trim());

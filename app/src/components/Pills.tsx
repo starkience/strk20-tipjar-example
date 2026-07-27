@@ -3,7 +3,7 @@
 //
 // `reserve` is subtracted before MAX: every private operation costs a flat pool
 // fee in STRK, so maxing your STRK would leave nothing to pay it with.
-import { formatUnits } from "../lib/tipjar";
+import { toInputAmount } from "../lib/tipjar";
 
 export function Pills(props: {
   balance?: bigint;
@@ -19,7 +19,7 @@ export function Pills(props: {
   })();
 
   const pick = (percent: bigint) =>
-    props.onPick(formatUnits((spendable * percent) / 100n, props.decimals));
+    props.onPick(toInputAmount((spendable * percent) / 100n, props.decimals));
 
   return (
     <div className="pills">

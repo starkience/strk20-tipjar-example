@@ -15,7 +15,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { POOL_FEE_STRK, STRK, type Token } from "../config";
 import { sameAddress } from "../lib/address";
-import { formatDisplay, formatUnits } from "../lib/tipjar";
+import { formatDisplay, toInputAmount } from "../lib/tipjar";
 import { TokenSelect } from "./TokenSelect";
 import { Pills } from "./Pills";
 
@@ -219,7 +219,7 @@ export function Stepper(props: {
               className="step__max"
               type="button"
               onClick={() =>
-                setShieldAmount(formatUnits(balance, token.decimals))
+                setShieldAmount(toInputAmount(balance, token.decimals))
               }
             >
               {formatDisplay(balance, token.decimals)} {token.symbol}
