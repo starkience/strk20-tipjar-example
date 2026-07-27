@@ -17,7 +17,7 @@
   justify-content: center;
   width: 100%;
   max-width: 900px;
-  height: min(100%, 660px);
+  height: min(100%, 700px);
 }
 
 /* ---- Cabinet --------------------------------------------------------- */
@@ -79,9 +79,9 @@
   color: var(--ink);
   background: var(--paper);
   border: 3px solid var(--ink);
-  padding: 10px 14px;
+  padding: 9px 12px;
   cursor: pointer;
-  box-shadow: 0 5px 0 var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
   transition:
     transform 40ms steps(2, end),
     box-shadow 40ms steps(2, end);
@@ -270,7 +270,7 @@
   background: transparent;
   border: none;
   outline: none;
-  padding: 11px;
+  padding: 9px 10px;
   width: 100%;
   min-width: 0;
 }
@@ -305,9 +305,9 @@
 
 .step {
   display: grid;
-  grid-template-columns: 26px 1fr;
-  gap: 12px;
-  padding-bottom: 14px;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  padding-bottom: 10px;
   position: relative;
 }
 .step:last-child {
@@ -316,13 +316,13 @@
 .step:not(:last-child)::before {
   content: "";
   position: absolute;
-  left: 12px;
-  top: 28px;
+  left: 11px;
+  top: 26px;
   bottom: 2px;
   width: 3px;
   background: var(--ink);
 }
-.step--locked:not(:last-child)::before {
+.step--todo:not(:last-child)::before {
   background: repeating-linear-gradient(
     to bottom,
     var(--ink) 0 4px,
@@ -331,8 +331,8 @@
 }
 
 .step__badge {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border: 3px solid var(--ink);
   background: var(--paper);
   font-family: var(--display);
@@ -353,7 +353,7 @@
 .step__body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -363,8 +363,44 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  min-height: 26px;
-  padding-top: 6px;
+  min-height: 24px;
+  padding-top: 5px;
+}
+/* the step's key number, always visible on the label row */
+.step__value {
+  font-family: var(--display);
+  font-size: 10px;
+  color: var(--gold-dark);
+  white-space: nowrap;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.step--todo .step__value {
+  opacity: 0.5;
+}
+.step__link {
+  font-family: var(--display);
+  font-size: 9px;
+  color: var(--blue);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.step__link:hover {
+  color: var(--ink);
+}
+.step__link:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.step__hint {
+  font-family: var(--display);
+  font-size: 8px;
+  line-height: 1.5;
+  color: #71717a;
 }
 .step__head.is-clickable {
   cursor: pointer;
@@ -377,8 +413,8 @@
   font-size: 10px;
   color: var(--ink);
 }
-.step--locked .step__label {
-  opacity: 0.35;
+.step--todo .step__label {
+  opacity: 0.45;
 }
 .step--done:not(.is-open) .step__label {
   opacity: 0.6;
@@ -398,7 +434,7 @@
 }
 /* one shared action column so every primary button lines up */
 .btn--act {
-  min-width: 104px;
+  min-width: 92px;
   flex: 0 0 auto;
 }
 .step__balances {

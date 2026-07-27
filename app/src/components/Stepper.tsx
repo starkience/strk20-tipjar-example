@@ -1,15 +1,15 @@
 // Stepper — the private flow: shield, check, wait, swap to STRK, tip.
-// The structure is the explanation; no prose beyond the labels.
 //
-// Information hierarchy: exactly one step is "now". The active step shows its
-// full controls; finished steps collapse to a one-line summary (click to reopen
-// and redo one); steps that aren't reachable yet are a dimmed label. That keeps
-// the frame small and makes the current action unmistakable.
+// Every step shows its controls and its numbers at all times. Nothing hides
+// behind a click: this is a teaching app, and a reader should see the whole
+// flow — what each step costs and what it produces — in one glance.
 //
-// Step 2 is the ONE place the app reads private state, and only because the user
-// pressed SHOW. Everything else derives from what the app itself did (a shield
-// this session, block maturity) or from PUBLIC balances. Tipping is always
-// available; the wallet enforces sufficient funds.
+// Fitting five open steps inside a fixed frame means each is compact by design:
+// the label row carries that step's key number on the right, and the controls
+// sit on one row beneath it. Height stays bounded without collapsing anything.
+//
+// Step 2 and the tip's SHOW are the only places the app reads private state,
+// and only when pressed — the wallet re-prompts for consent on every such call.
 import { useEffect, useRef, useState, type Ref } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
@@ -20,24 +20,19 @@ import { TokenSelect } from "./TokenSelect";
 import { Pills } from "./Pills";
 
 const SECONDS_PER_BLOCK = 2.1;
-// Every private operation costs a flat pool fee, charged on top of the amount.
 const POOL_FEE_LABEL = formatDisplay(POOL_FEE_STRK, STRK.decimals);
 
-type StepState = "done" | "active" | "locked";
+type StepState = "done" | "active" | "todo";
 
 function Step(props: {
   n: number;
   label: React.ReactNode;
   state: StepState;
-  /** Shown when the step is finished and collapsed. */
-  summary?: React.ReactNode;
-  open?: boolean;
-  onToggle?: () => void;
+  /** Right-aligned value on the label row — the step's key number. */
+  value?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   const badgeRef = useRef<HTMLSpanElement>(null);
-  const expanded = props.state === "active" || props.open;
-
   useGSAP(
     () => {
       if (props.state !== "done" || !badgeRef.current) return;
@@ -50,38 +45,19 @@ function Step(props: {
     { dependencies: [props.state] },
   );
 
-  // Any step with a toggle can be opened — a locked step is not unreachable,
-  // it just is not the current one.
-  const collapsible = Boolean(props.onToggle);
-
   return (
-    <li className={`step step--${props.state} ${expanded ? "is-open" : ""}`}>
+    <li className={`step step--${props.state}`}>
       <span className="step__badge" ref={badgeRef}>
         {props.state === "done" ? "✓" : props.n}
       </span>
       <div className="step__body">
-        <div
-          className={`step__head ${collapsible ? "is-clickable" : ""}`}
-          onClick={collapsible ? props.onToggle : undefined}
-          role={collapsible ? "button" : undefined}
-          tabIndex={collapsible ? 0 : undefined}
-          onKeyDown={
-            collapsible
-              ? (e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    props.onToggle?.();
-                  }
-                }
-              : undefined
-          }
-        >
+        <div className="step__head">
           <span className="step__label">{props.label}</span>
-          {!expanded && props.summary !== undefined && (
-            <span className="step__summary">{props.summary}</span>
+          {props.value !== undefined && (
+            <span className="step__value">{props.value}</span>
           )}
         </div>
-        {expanded && props.children}
+        {props.children}
       </div>
     </li>
   );
@@ -92,9 +68,9 @@ export function Stepper(props: {
   pending: boolean;
   blocksRemaining: number | null;
   publicBalances: Record<string, bigint>;
+  shieldedBalances: Record<string, bigint> | null;
   approved: Record<string, boolean>;
   onCheckApproval: (token: Token) => Promise<void> | void;
-  shieldedBalances: Record<string, bigint> | null;
   tokens: Token[];
   onShield: (token: Token, amount: string) => Promise<unknown>;
   onShowShielded: (tokens: Token[]) => Promise<unknown>;
@@ -107,19 +83,12 @@ export function Stepper(props: {
   const [swapAmount, setSwapAmount] = useState("5");
   const [tipAmount, setTipAmount] = useState("1");
   const [swapped, setSwapped] = useState(false);
-  const [lastShielded, setLastShielded] = useState<Token | null>(null);
-  const [lastShieldedAmount, setLastShieldedAmount] = useState<string | null>(
-    null,
-  );
-  // A finished step the user reopened to redo it.
-  const [openStep, setOpenStep] = useState<number | null>(null);
 
   const held = props.tokens.filter(
     (t) => (props.publicBalances[t.address] ?? 0n) > 0n,
   );
   const available = held.length > 0 ? held : props.tokens;
 
-  // Check approval whenever the selected token changes — public read, no prompt.
   const { onCheckApproval } = props;
   useEffect(() => {
     void onCheckApproval(token);
@@ -135,7 +104,6 @@ export function Stepper(props: {
   const shieldedNow = props.blocksRemaining !== null;
   const maturing = shieldedNow && props.blocksRemaining! > 0;
 
-  // Rough ETA alongside the block count. Mainnet blocks land ~2.1s apart.
   const [eta, setEta] = useState<number | null>(null);
   useEffect(() => {
     if (!maturing) {
@@ -152,71 +120,44 @@ export function Stepper(props: {
 
   const isStrk = sameAddress(token.address, STRK.address);
   const balance = props.publicBalances[token.address];
-  const checked = props.shieldedBalances !== null;
-  const subject = lastShielded ?? token;
   const shieldedOf = (t: Token) => props.shieldedBalances?.[t.address];
+  const needsApproval = props.approved[token.address] === false;
 
-  // The pool fee is denominated in STRK. Shielding STRK therefore nets out to
-  // less than you typed; shielding any other token pays the fee separately, so
-  // the full amount lands. Preview it rather than let the wallet surprise them.
-  const netShielded = (amountStr: string, t: Token): string | null => {
+  // The pool fee is charged in STRK, so it only eats into the shielded amount
+  // when STRK itself is what is being shielded.
+  const netShielded = (() => {
+    if (!isStrk) return null;
     try {
-      const raw = parseUnits(amountStr, t.decimals);
-      if (!sameAddress(t.address, STRK.address)) return null;
-      const net = raw - POOL_FEE_STRK;
-      return formatDisplay(net > 0n ? net : 0n, t.decimals);
+      const net = parseUnits(shieldAmount, token.decimals) - POOL_FEE_STRK;
+      return formatDisplay(net > 0n ? net : 0n, token.decimals);
     } catch {
       return null;
     }
-  };
-  const shieldPreview = netShielded(shieldAmount, token);
+  })();
 
-  // Exactly one step is expanded: the first unfinished one, or whichever the
-  // user opened. Two expanded steps overflowed the cabinet and produced a
-  // scrollbar — the frame is fixed, so height has to be bounded by design
-  // rather than by hoping the content fits.
-  const done = [
-    shieldedNow,
-    checked,
-    shieldedNow && !maturing,
-    isStrk || swapped,
-    false, // tipping is never "done" — it is the end of the flow
-  ];
-  const firstUnfinished = done.findIndex((d) => !d) + 1;
-  const current = openStep ?? firstUnfinished;
-
-  const stateOf = (n: number): StepState => {
-    if (n === current) return "active";
-    return done[n - 1] ? "done" : "locked";
-  };
-  const [s1, s2, s3, s4, s5] = [1, 2, 3, 4, 5].map(stateOf);
-
-  // Any step can be opened, including finished ones — tipping stays reachable
-  // at every point in the flow, it just is not expanded by default.
-  const toggle = (n: number) => () =>
-    setOpenStep((cur) => (cur === n ? null : n));
+  const st = (done: boolean, active: boolean): StepState =>
+    done ? "done" : active ? "active" : "todo";
 
   return (
     <ol className="stepper">
       <Step
         n={1}
         label="SHIELD"
-        state={s1}
-        open={openStep === 1}
-        onToggle={toggle(1)}
-        summary={
-          lastShieldedAmount ? (
-            <>
-              {netShielded(lastShieldedAmount, subject) ?? lastShieldedAmount}{" "}
-              {subject.symbol}
-              <span className="step__fee">
-                {" "}
-                {sameAddress(subject.address, STRK.address)
-                  ? `−${POOL_FEE_LABEL} FEE`
-                  : "− POOL FEE"}
-              </span>
-            </>
-          ) : undefined
+        state={st(shieldedNow, !shieldedNow)}
+        value={
+          balance !== undefined ? (
+            <button
+              className="step__link"
+              type="button"
+              onClick={() =>
+                setShieldAmount(toInputAmount(balance, token.decimals))
+              }
+            >
+              {formatDisplay(balance, token.decimals)} {token.symbol}
+            </button>
+          ) : (
+            "—"
+          )
         }
       >
         <div className="step__row">
@@ -239,117 +180,71 @@ export function Stepper(props: {
               aria-label="Amount to shield"
             />
           </span>
+          <Pills
+            balance={balance}
+            decimals={token.decimals}
+            reserve={isStrk ? POOL_FEE_STRK : 0n}
+            onPick={setShieldAmount}
+          />
           <button
             className="btn btn--dark btn--act"
             type="button"
             disabled={props.disabled || props.pending}
-            onClick={() =>
-              props
-                .onShield(token, shieldAmount)
-                .then(() => {
-                  setLastShielded(token);
-                  setLastShieldedAmount(shieldAmount);
-                  setOpenStep(null);
-                })
-                .catch(() => {})
-            }
+            onClick={() => props.onShield(token, shieldAmount).catch(() => {})}
           >
             SHIELD
           </button>
         </div>
-        <Pills
-          balance={balance}
-          decimals={token.decimals}
-          reserve={isStrk ? POOL_FEE_STRK : 0n}
-          onPick={setShieldAmount}
-        />
-        <div className="step__note">
-          <span className="step__note-label">YOU SHIELD</span>
-          <span className="step__net">
-            {shieldPreview ?? shieldAmount} {token.symbol}
-          </span>
-          <span className="step__fee">
-            {isStrk ? `−${POOL_FEE_LABEL} STRK FEE` : "− POOL FEE"}
-          </span>
-        </div>
-        {props.approved[token.address] === false && (
-          <div className="step__note">
+        <p className="step__hint">
+          {needsApproval && (
             <span className="step__fee">
-              FIRST {token.symbol} SHIELD ALSO NEEDS AN APPROVAL — EXPECT TWO
-              PROMPTS
+              FIRST {token.symbol} SHIELD NEEDS AN APPROVAL — TWO PROMPTS ·{" "}
             </span>
-          </div>
-        )}
-        <div className="step__note">
-          <span className="step__note-label">PUBLIC</span>
-          {balance !== undefined ? (
-            <button
-              className="step__max"
-              type="button"
-              onClick={() =>
-                setShieldAmount(toInputAmount(balance, token.decimals))
-              }
-            >
-              {formatDisplay(balance, token.decimals)} {token.symbol}
-            </button>
-          ) : (
-            <span className="step__max">—</span>
           )}
-        </div>
+          {netShielded !== null
+            ? `YOU GET ${netShielded} ${token.symbol} AFTER THE ${POOL_FEE_LABEL} STRK POOL FEE`
+            : "A POOL FEE APPLIES, CHARGED IN STRK"}
+        </p>
       </Step>
 
       <Step
         n={2}
         label="PRIVATE BALANCE"
-        state={s2}
-        open={openStep === 2}
-        onToggle={toggle(2)}
-        summary={
-          props.shieldedBalances
-            ? `${formatDisplay(
-                props.shieldedBalances[subject.address] ?? 0n,
-                subject.decimals,
-              )} ${subject.symbol}`
-            : undefined
-        }
-      >
-        <div className="step__row">
-          <span className="step__balances">
+        state={st(props.shieldedBalances !== null, false)}
+        value={
+          <>
             {props.shieldedBalances
-              ? `${formatDisplay(
-                  props.shieldedBalances[subject.address] ?? 0n,
-                  subject.decimals,
-                )} ${subject.symbol}`
-              : "—"}
-          </span>
-          <button
-            className="btn btn--act"
-            type="button"
-            disabled={props.disabled}
-            onClick={() => props.onShowShielded([subject]).catch(() => {})}
-          >
-            SHOW
-          </button>
-        </div>
-      </Step>
+              ? `${formatDisplay(shieldedOf(token) ?? 0n, token.decimals)} ${token.symbol}`
+              : "—"}{" "}
+            <button
+              className="step__link"
+              type="button"
+              disabled={props.disabled}
+              onClick={() => props.onShowShielded([token]).catch(() => {})}
+            >
+              SHOW
+            </button>
+          </>
+        }
+      />
 
       <Step
         n={3}
         label="RECOMMENDED WAIT"
-        state={s3}
-        open={openStep === 3}
-        onToggle={toggle(3)}
-        summary={
-          maturing ? `${props.blocksRemaining} BLOCKS` : shieldedNow ? "READY" : "—"
+        state={st(shieldedNow && !maturing, maturing)}
+        value={
+          maturing ? (
+            <>
+              {props.blocksRemaining} BLOCKS{" "}
+              {eta !== null && <span className="step__eta">~{eta}s</span>}
+            </>
+          ) : shieldedNow ? (
+            "READY"
+          ) : (
+            "—"
+          )
         }
-      >
-        <span className="step__countline">
-          <span className="step__count">
-            {maturing ? `${props.blocksRemaining} BLOCKS` : "READY"}
-          </span>
-          {maturing && eta !== null && <span className="step__eta">~{eta}s</span>}
-        </span>
-      </Step>
+      />
 
       <Step
         n={4}
@@ -358,71 +253,64 @@ export function Stepper(props: {
             PRIVATE SWAP <span className="step__arrow">▶</span> {STRK.symbol}
           </>
         }
-        state={s4}
-        open={openStep === 4}
-        onToggle={toggle(4)}
-        summary={isStrk ? "NOT NEEDED" : swapped ? "SWAPPED" : "—"}
+        state={st(isStrk || swapped, !isStrk && shieldedNow && !swapped)}
+        value={isStrk ? "NOT NEEDED" : swapped ? "SWAPPED" : undefined}
       >
-        <div className="step__row">
-          <span className="field">
-            <input
-              className="field__input"
-              type="text"
-              inputMode="decimal"
-              value={swapAmount}
-              onChange={(e) => setSwapAmount(e.target.value)}
-              aria-label={`Amount of ${token.symbol} to swap`}
+        {!isStrk && (
+          <div className="step__row">
+            <span className="field">
+              <input
+                className="field__input"
+                type="text"
+                inputMode="decimal"
+                value={swapAmount}
+                onChange={(e) => setSwapAmount(e.target.value)}
+                aria-label={`Amount of ${token.symbol} to swap`}
+              />
+              <span className="field__unit">{token.symbol}</span>
+            </span>
+            <Pills
+              balance={shieldedOf(token)}
+              decimals={token.decimals}
+              onPick={setSwapAmount}
             />
-            <span className="field__unit">{token.symbol}</span>
-          </span>
-          <button
-            className="btn btn--dark btn--act"
-            type="button"
-            disabled={props.disabled || props.pending || maturing}
-            onClick={() =>
-              props
-                .onSwap(token, swapAmount)
-                .then(() => setSwapped(true))
-                .catch(() => {})
-            }
-          >
-            SWAP
-          </button>
-        </div>
-        <Pills
-          balance={shieldedOf(token)}
-          decimals={token.decimals}
-          onPick={setSwapAmount}
-        />
+            <button
+              className="btn btn--dark btn--act"
+              type="button"
+              disabled={props.disabled || props.pending || maturing}
+              onClick={() =>
+                props
+                  .onSwap(token, swapAmount)
+                  .then(() => setSwapped(true))
+                  .catch(() => {})
+              }
+            >
+              SWAP
+            </button>
+          </div>
+        )}
       </Step>
 
       <Step
         n={5}
         label="TIP"
-        state={s5}
-        open={openStep === 5}
-        onToggle={toggle(5)}
-        summary="—"
-      >
-        <div className="step__note">
-          <span className="step__note-label">SHIELDED</span>
-          <span className="step__net">
+        state="active"
+        value={
+          <>
             {props.shieldedBalances
-              ? `${formatDisplay(
-                  props.shieldedBalances[STRK.address] ?? 0n,
-                  STRK.decimals,
-                )} ${STRK.symbol}`
-              : "—"}
-          </span>
-          <button
-            className="step__max"
-            type="button"
-            disabled={props.disabled}
-            onClick={() => props.onShowShielded([STRK]).catch(() => {})}
-          >
-            SHOW
-          </button>
-        </div>
+              ? `${formatDisplay(shieldedOf(STRK) ?? 0n, STRK.decimals)} STRK`
+              : "—"}{" "}
+            <button
+              className="step__link"
+              type="button"
+              disabled={props.disabled}
+              onClick={() => props.onShowShielded([STRK]).catch(() => {})}
+            >
+              SHOW
+            </button>
+          </>
+        }
+      >
         <div className="step__row">
           <span className="field">
             <input
@@ -435,6 +323,12 @@ export function Stepper(props: {
             />
             <span className="field__unit">STRK</span>
           </span>
+          <Pills
+            balance={shieldedOf(STRK)}
+            decimals={STRK.decimals}
+            reserve={POOL_FEE_STRK}
+            onPick={setTipAmount}
+          />
           <button
             ref={props.tipButtonRef}
             className="btn btn--dark btn--act"
@@ -445,12 +339,6 @@ export function Stepper(props: {
             {props.pending ? "…" : "TIP"}
           </button>
         </div>
-        <Pills
-          balance={shieldedOf(STRK)}
-          decimals={STRK.decimals}
-          reserve={POOL_FEE_STRK}
-          onPick={setTipAmount}
-        />
       </Step>
     </ol>
   );
