@@ -9,7 +9,7 @@ import { TipForm } from "./components/TipForm";
 import { TipWall } from "./components/TipWall";
 import { TxLog, type LogEntry } from "./components/TxLog";
 import { COIN_SVG } from "./lib/pixelArt";
-import { formatStrk } from "./lib/tipjar";
+import { formatDisplay } from "./lib/tipjar";
 import type { Token } from "./config";
 import { playCoinSound } from "./lib/coinSound";
 import { launchCoinFlight } from "./lib/coinFlight";
@@ -101,7 +101,7 @@ export default function App() {
         kind: "PUBLIC TIP",
         hash: t.txHash,
         time: t.timestamp * 1000,
-        detail: `${formatStrk(t.amount)} STRK`,
+        detail: `${formatDisplay(t.amount, 18)} STRK`,
       })),
     ],
     [session, jar.tips],

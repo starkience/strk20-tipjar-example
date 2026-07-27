@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildTipCalls,
+  formatDisplay,
   parseStrk,
   formatStrk,
   parseTippedEvent,
@@ -62,5 +63,20 @@ describe("parseTippedEvent", () => {
     expect(evt.amount).toBe(15n * 10n ** 17n);
     expect(evt.timestamp).toBe(0x6553f100);
     expect(evt.txHash).toBe("0xdead");
+  });
+});
+
+describe("formatDisplay", () => {
+  it("rounds to 2 decimals and trims trailing zeros", () => {
+    // Values seen in the app before rounding was added.
+    expect(formatDisplay(70935405407550215760n, 18)).toBe("70.94");
+    expect(formatDisplay(9000000127448484824n, 18)).toBe("9");
+    expect(formatDisplay(3000000000000000000n, 18)).toBe("3");
+  });
+  it("keeps tiny non-zero balances visible instead of showing 0", () => {
+    expect(formatDisplay(5000n, 8)).toBe("0.00005"); // 0.00005 WBTC
+  });
+  it("formats zero", () => {
+    expect(formatDisplay(0n, 18)).toBe("0");
   });
 });

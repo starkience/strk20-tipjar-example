@@ -40,6 +40,20 @@ export function formatUnits(value: bigint, decimals: number): string {
   return frac ? `${whole}.${frac}` : whole.toString();
 }
 
+/**
+ * Human-readable amount: 2 decimals, trailing zeros trimmed. Very small
+ * non-zero balances fall back to significant digits so they never render as
+ * "0" (e.g. 0.00005 WBTC).
+ */
+export function formatDisplay(value: bigint, decimals: number): string {
+  if (value === 0n) return "0";
+  const n = Number(formatUnits(value, decimals));
+  if (n >= 0.01) {
+    return n.toFixed(2).replace(/\.?0+$/, "");
+  }
+  return n.toPrecision(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 /** "1.5" -> 1500000000000000000n. Throws on empty/negative/non-numeric input. */
 export function parseStrk(input: string): bigint {
   const m = /^(\d+)(?:\.(\d{1,18}))?$/.exec(input.trim());

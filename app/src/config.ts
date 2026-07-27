@@ -2,6 +2,8 @@
 // Point `tipJarAddress`/`ownerAddress`/`deployBlock` at your own deployment
 // (see docs/DEPLOYMENT.md) to run this against a jar you control.
 
+import { normalizeAddress } from "./lib/address";
+
 export type Token = {
   symbol: string;
   address: string;
@@ -45,6 +47,11 @@ export const TOKENS: Token[] = [
     decimals: 8,
   },
 ];
+
+// Canonical (zero-padded) form so comparisons against API-sourced addresses work.
+TOKENS.forEach((t) => {
+  t.address = normalizeAddress(t.address);
+});
 
 export const STRK = TOKENS[0];
 

@@ -10,8 +10,11 @@ import { useEffect, useRef, useState, type Ref } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { STRK, type Token } from "../config";
+import { sameAddress } from "../lib/address";
 import { TokenSelect } from "./TokenSelect";
-import { formatUnits } from "../lib/tipjar";
+import { formatDisplay, formatUnits } from "../lib/tipjar";
+
+const SECONDS_PER_BLOCK = 2.1;
 
 type StepState = "done" | "active" | "locked";
 
@@ -76,7 +79,7 @@ export function Stepper(props: {
 
   // If the selected token isn't one they hold, move to the first that is.
   useEffect(() => {
-    if (!available.some((t) => t.address === token.address)) {
+    if (!available.some((t) => sameAddress(t.address, token.address))) {
       setToken(available[0]);
       setSwapped(false);
     }
@@ -84,7 +87,23 @@ export function Stepper(props: {
 
   const shieldedNow = props.blocksRemaining !== null;
   const maturing = shieldedNow && props.blocksRemaining! > 0;
-  const isStrk = token.address === STRK.address;
+
+  // Rough ETA alongside the block count. Mainnet blocks land ~2.1s apart, so
+  // the 10-block maturity window is ~20s; the ticker keeps it feeling live.
+  const [eta, setEta] = useState<number | null>(null);
+  useEffect(() => {
+    if (!maturing) {
+      setEta(null);
+      return;
+    }
+    setEta(Math.ceil(props.blocksRemaining! * SECONDS_PER_BLOCK));
+    const id = setInterval(
+      () => setEta((s) => (s !== null && s > 0 ? s - 1 : 0)),
+      1000,
+    );
+    return () => clearInterval(id);
+  }, [props.blocksRemaining, maturing]);
+  const isStrk = sameAddress(token.address, STRK.address);
   const balance = props.publicBalances[token.address];
   const checked = props.shieldedBalances !== null;
 
@@ -141,7 +160,7 @@ export function Stepper(props: {
                 setShieldAmount(formatUnits(balance, token.decimals))
               }
             >
-              {formatUnits(balance, token.decimals)} {token.symbol}
+              {formatDisplay(balance, token.decimals)} {token.symbol}
             </button>
           ) : (
             <span className="step__max" aria-hidden>
@@ -166,7 +185,7 @@ export function Stepper(props: {
               ? ofInterest
                   .map(
                     (t) =>
-                      `${formatUnits(
+                      `${formatDisplay(
                         props.shieldedBalances![t.address] ?? 0n,
                         t.decimals,
                       )} ${t.symbol}`,
@@ -178,8 +197,17 @@ export function Stepper(props: {
       </Step>
 
       <Step n={3} label="RECOMMENDED WAIT" state={s3}>
-        <span className="step__count">
-          {maturing ? `${props.blocksRemaining} BLOCKS` : shieldedNow ? "READY" : "—"}
+        <span className="step__countline">
+          <span className="step__count">
+            {maturing
+              ? `${props.blocksRemaining} BLOCKS`
+              : shieldedNow
+                ? "READY"
+                : "—"}
+          </span>
+          {maturing && eta !== null && (
+            <span className="step__eta">~{eta}s</span>
+          )}
         </span>
       </Step>
 

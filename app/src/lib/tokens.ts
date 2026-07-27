@@ -9,6 +9,7 @@
 // fetched in a single JSON-RPC batch, and involve no wallet call and no consent
 // prompt — unlike shielded balances, which this app never reads.
 import type { Token } from "../config";
+import { normalizeAddress } from "./address";
 
 // Every verified token (76 at time of writing, so one page covers it), ordered
 // most-traded first. We check the user's balance against all of them, so the
@@ -31,7 +32,7 @@ export async function fetchTokens(fallback: Token[]): Promise<Token[]> {
       .filter((t) => t.address && t.symbol && Number.isFinite(t.decimals))
       .map((t) => ({
         symbol: t.symbol,
-        address: t.address,
+        address: normalizeAddress(t.address),
         decimals: t.decimals,
       }));
     return list.length > 0 ? list : fallback;

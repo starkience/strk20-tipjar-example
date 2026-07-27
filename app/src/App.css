@@ -622,3 +622,15 @@
   color: #71717a;
   letter-spacing: 0.5px;
 }
+
+/* Block countdown + seconds ETA */
+.step__countline {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.step__eta {
+  font-family: var(--display);
+  font-size: 9px;
+  color: #71717a;
+}
