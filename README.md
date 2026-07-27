@@ -12,6 +12,15 @@ can see exactly which files change and why.
 If you are a developer (or a coding agent) trying to understand **how STRK20
 plugs into an existing app**, this is meant to be read top to bottom.
 
+### 👉 Start with [**TUTORIAL.md**](TUTORIAL.md)
+
+The short, complete walkthrough: an ordinary mainnet app → the problem, shown
+on-chain → privacy added with the agent skill, in **0 contract changes**. It
+ends with the gotchas that cost us real debugging time. Everything else in this
+repo is the evidence behind it.
+
+**Try it live:** <https://app-chi-three-39.vercel.app>
+
 ---
 
 ## Status
@@ -79,6 +88,7 @@ This is the single most important design decision in the repo, and
 
 ```
 strk20-tipjar-example/
+├── TUTORIAL.md                   ← START HERE — the walkthrough, end to end
 ├── README.md                     ← you are here
 ├── AGENTS.md                     ← orientation for coding agents (commands, conventions)
 ├── STRK20_INTEGRATION_PLAN.md    ← the plan the agent skill generated
@@ -115,6 +125,7 @@ strk20-tipjar-example/
 
 | | |
 | --- | --- |
+| Live app | <https://app-chi-three-39.vercel.app> |
 | Network | Starknet **mainnet** |
 | TipJar contract | [`0x03ade0d0…b8a64f`](https://starkscan.co/contract/0x03ade0d029152e3b52188b5a32eac1f8b6f14d2fc3bdae1b94d9f6c545b8a64f) |
 | Class hash | `0x22ee61506d0c146e3eb2f4a6b3665bdc8cc349c45ed280ed690e6145003a039` |
@@ -146,9 +157,14 @@ STRK20-capable wallet — Ready today** (Xverse is in progress; Braavos does not
 support STRK20). The app detects this and hides the private path when it is
 unavailable.
 
-**Private swaps** additionally need an AVNU paymaster key — copy
-`app/.env.example` to `app/.env.local` and fill it in. Note that anything bundled
-into a browser app is publicly readable; proxy it server-side for production.
+**Private swaps** additionally need an AVNU paymaster key. Anything bundled into
+a browser app is publicly readable, so the key is kept server-side:
+
+- **Locally** — `vite dev` serves no functions, so copy `app/.env.example` to
+  `app/.env.local` and set `VITE_AVNU_PAYMASTER_API_KEY`.
+- **In production** — set an **unprefixed** `AVNU_PAYMASTER_API_KEY` in your
+  host's environment. [`app/api/paymaster.ts`](app/api/paymaster.ts) attaches it
+  and forwards to AVNU, so the key never reaches the browser.
 
 ```bash
 cd contracts && scarb build && snforge test    # 11 passing
