@@ -1,10 +1,13 @@
 // Stepper — the private flow as three vertical steps: shield, wait, tip.
 // The structure is the explanation; no prose beyond the labels.
 //
-// Step state is driven by the user's ACTUAL shielded balance, not by whether
-// they shielded in this session: someone who already holds shielded STRK has
-// nothing to do in step 1 and can tip immediately. Shielding is a top-up, and
-// the wait only gates funds shielded just now (notes mature after 10 blocks).
+// The stepper shows the recommended ORDER; it does not gate on private data.
+// Tipping is always available — someone who already holds shielded STRK should
+// not have to shield again, and the wallet enforces sufficient funds anyway.
+// Reading your shielded balance is a disclosure action (it prompts the wallet),
+// so it is an optional readout in the header, never a prerequisite.
+// The only real constraint is note maturity: funds shielded just now become
+// spendable after 10 blocks, which step 2 counts down.
 import { useState, type Ref } from "react";
 import { formatStrk } from "../lib/tipjar";
 
@@ -41,15 +44,14 @@ export function Stepper(props: {
   const [tipAmount, setTipAmount] = useState("1");
 
   const funded = props.balance !== null && props.balance > 0n;
-  const maturing = props.blocksRemaining !== null && props.blocksRemaining > 0;
-  const justMatured = props.blocksRemaining === 0;
-  // Spendable if they already hold shielded STRK, or what they shielded now has
-  // matured.
-  const canTip = funded || justMatured;
+  const shieldedNow = props.blocksRemaining !== null;
+  const maturing = shieldedNow && props.blocksRemaining! > 0;
 
-  const s1: StepState = funded || props.blocksRemaining !== null ? "done" : "active";
-  const s2: StepState = maturing ? "active" : canTip ? "done" : "locked";
-  const s3: StepState = canTip ? "active" : "locked";
+  // Step 1 reads as done once there is anything to tip with; step 2 is only
+  // meaningful while a fresh note matures; step 3 is always available.
+  const s1: StepState = funded || shieldedNow ? "done" : "active";
+  const s2: StepState = maturing ? "active" : shieldedNow || funded ? "done" : "locked";
+  const s3: StepState = "active";
 
   return (
     <div className="stepper-wrap">
@@ -94,7 +96,11 @@ export function Stepper(props: {
 
         <Step n={2} label="RECOMMENDED WAIT" state={s2}>
           <span className="step__count">
-            {maturing ? `${props.blocksRemaining} BLOCKS` : canTip ? "READY" : "—"}
+            {maturing
+              ? `${props.blocksRemaining} BLOCKS`
+              : shieldedNow || funded
+                ? "READY"
+                : "—"}
           </span>
         </Step>
 
