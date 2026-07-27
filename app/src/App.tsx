@@ -63,7 +63,9 @@ export default function App() {
               >
                 {showLog ? "HIDE" : "LOG"}
               </button>
-              <WalletConnectModal buttonClassName="btn btn--connect" />
+              {/* Stock get-starknet connect button + popup, exactly as
+                  documented — no styling overrides. */}
+              <WalletConnectModal />
             </div>
           </header>
 
