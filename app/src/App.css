@@ -643,3 +643,18 @@
   vertical-align: -1px;
   margin: 0 2px;
 }
+
+/* This session's transactions stand out from chain history */
+.txlog__row.is-session {
+  background: var(--gold-lit);
+  border-color: var(--gold-dark);
+}
+.txlog__row.is-session .txlog__kind {
+  color: var(--ink);
+}
+.txlog__row.is-session .txlog__detail {
+  color: #1f6f2f;
+}
+.txlog__row.is-session .txlog__hash {
+  color: #1c4fd8;
+}

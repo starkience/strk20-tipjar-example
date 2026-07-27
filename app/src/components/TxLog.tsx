@@ -11,6 +11,8 @@ export type LogEntry = {
   hash: string;
   time: number;
   detail?: string;
+  /** Made in this session — highlighted so it stands out from chain history. */
+  session?: boolean;
 };
 
 export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
@@ -43,7 +45,10 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
 
       <ul className="txlog__list" ref={listRef}>
         {props.entries.map((e) => (
-          <li key={e.hash} className="txlog__row">
+          <li
+            key={e.hash}
+            className={`txlog__row ${e.session ? "is-session" : ""}`}
+          >
             <span className="txlog__kind">{e.kind}</span>
             {e.detail && <span className="txlog__detail">{e.detail}</span>}
             <a

@@ -56,7 +56,10 @@ export default function App() {
   );
 
   const log = (kind: string, hash: string, detail?: string) =>
-    setSession((s) => [{ kind, hash, time: Date.now(), detail }, ...s]);
+    setSession((s) => [
+      { kind, hash, time: Date.now(), detail, session: true },
+      ...s,
+    ]);
 
   const celebrate = () => {
     playCoinSound();
