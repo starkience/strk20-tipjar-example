@@ -741,3 +741,13 @@
   outline: 3px solid var(--blue);
   outline-offset: 2px;
 }
+
+/* Pool fee callout — cost shown up front, not discovered afterwards */
+.step__fee {
+  font-family: var(--display);
+  font-size: 8px;
+  color: var(--red);
+}
+.step__summary .step__fee {
+  font-size: 9px;
+}

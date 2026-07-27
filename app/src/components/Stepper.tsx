@@ -20,6 +20,8 @@ import { TokenSelect } from "./TokenSelect";
 import { Pills } from "./Pills";
 
 const SECONDS_PER_BLOCK = 2.1;
+// Every private operation costs a flat pool fee, charged on top of the amount.
+const POOL_FEE_LABEL = formatDisplay(POOL_FEE_STRK, STRK.decimals);
 
 type StepState = "done" | "active" | "locked";
 
@@ -163,9 +165,12 @@ export function Stepper(props: {
         open={openStep === 1}
         onToggle={toggle(1)}
         summary={
-          lastShieldedAmount
-            ? `${lastShieldedAmount} ${subject.symbol}`
-            : undefined
+          lastShieldedAmount ? (
+            <>
+              {lastShieldedAmount} {subject.symbol}
+              <span className="step__fee"> +{POOL_FEE_LABEL} FEE</span>
+            </>
+          ) : undefined
         }
       >
         <div className="step__row">
@@ -213,6 +218,8 @@ export function Stepper(props: {
           onPick={setShieldAmount}
         />
         <div className="step__note">
+          <span className="step__note-label">POOL FEE</span>
+          <span className="step__fee">{POOL_FEE_LABEL} STRK</span>
           <span className="step__note-label">PUBLIC</span>
           {balance !== undefined ? (
             <button
