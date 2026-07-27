@@ -19,6 +19,27 @@ export interface TipEvent {
   txHash: string;
 }
 
+/** "1.5" + 6 decimals -> 1500000n. Throws on empty/negative/non-numeric input. */
+export function parseUnits(input: string, decimals: number): bigint {
+  const re = new RegExp(`^(\\d+)(?:\\.(\\d{1,${decimals}}))?$`);
+  const m = re.exec(input.trim());
+  if (!m) throw new Error(`invalid amount: "${input}"`);
+  const whole = BigInt(m[1]);
+  const frac = m[2] ? BigInt(m[2].padEnd(decimals, "0")) : 0n;
+  return whole * 10n ** BigInt(decimals) + frac;
+}
+
+/** 1500000n + 6 decimals -> "1.5" (trailing zeros trimmed). */
+export function formatUnits(value: bigint, decimals: number): string {
+  const base = 10n ** BigInt(decimals);
+  const whole = value / base;
+  const frac = (value % base)
+    .toString()
+    .padStart(decimals, "0")
+    .replace(/0+$/, "");
+  return frac ? `${whole}.${frac}` : whole.toString();
+}
+
 /** "1.5" -> 1500000000000000000n. Throws on empty/negative/non-numeric input. */
 export function parseStrk(input: string): bigint {
   const m = /^(\d+)(?:\.(\d{1,18}))?$/.exec(input.trim());

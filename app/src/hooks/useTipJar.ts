@@ -8,13 +8,25 @@
 // degrade gracefully on wallets without STRK20 support.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RpcProvider, WalletAccountV6, walletV6 } from "starknet";
+import {
+  compareVersions,
+  RpcProvider,
+  WalletAccountV6,
+  walletV6,
+} from "starknet";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
 import type { STRK20_ACTION } from "@starknet-io/types-js";
-import { CONFIG } from "../config";
+import {
+  createStrk20WalletProver,
+  executePrivateSwap,
+  getQuotes,
+  PRIVACY_POOL_ADDRESS,
+} from "@avnu/avnu-sdk";
+import { CONFIG, STRK, TOKENS, type Token } from "../config";
 import {
   buildTipCalls,
   parseStrk,
+  parseUnits,
   parseTippedEvent,
   TIPPED_SELECTOR,
   type TipEvent,
@@ -26,18 +38,15 @@ const provider = new RpcProvider({ nodeUrl: CONFIG.rpcUrl });
 export const MATURITY_BLOCKS = 10;
 
 // Capability check that NEVER touches balances or keys: ask the wallet which
-// Wallet-API versions it supports. STRK20 (the Privacy Wallet API) ships in
-// v0.10.3, so a wallet advertising >= 0.10 supports the private actions. This
-// is a plain "what do you support?" query — the dapp reads no private data.
+// Wallet-API versions it supports. The STRK20 methods ship in wallet API
+// >= 0.10.3 (Ready, Xverse) — the same probe AVNU documents. Wallets predating
+// `supportedWalletApi` throw, and are treated as not capable.
 async function walletSupportsStrk20(
   wallet: WalletWithStarknetFeatures,
 ): Promise<boolean> {
   try {
     const versions = await walletV6.supportedWalletApi(wallet);
-    return versions.some((v) => {
-      const [major, minor] = v.split(".").map((n) => parseInt(n, 10));
-      return major > 0 || (major === 0 && minor >= 10);
-    });
+    return versions.some((v) => compareVersions(v, "0.10.3") >= 0);
   } catch {
     return false;
   }
@@ -51,10 +60,13 @@ export function useTipJar() {
   // maturity countdown (a note is spendable MATURITY_BLOCKS after creation).
   const [shieldedAtBlock, setShieldedAtBlock] = useState<number | null>(null);
   const [currentBlock, setCurrentBlock] = useState<number | null>(null);
-  // The connected account's PUBLIC STRK balance. This is ordinary public chain
-  // data read over RPC (like the jar's totals) — no wallet involvement and no
-  // consent prompt, unlike shielded balances which the app never reads.
-  const [publicBalance, setPublicBalance] = useState<bigint | null>(null);
+  // The connected account's PUBLIC token balances, keyed by token address.
+  // Ordinary public chain data read over RPC (like the jar's totals) — no wallet
+  // involvement and no consent prompt, unlike shielded balances which the app
+  // never reads.
+  const [publicBalances, setPublicBalances] = useState<Record<string, bigint>>(
+    {},
+  );
   const [tips, setTips] = useState<TipEvent[]>([]);
   const [total, setTotal] = useState<bigint>(0n);
   const [count, setCount] = useState<number>(0);
@@ -65,18 +77,24 @@ export function useTipJar() {
   // through. A ref updates immediately and blocks that. Prevents double-shields.
   const submittingRef = useRef(false);
 
-  // Public STRK balance of an address, over RPC. Public data — no wallet call.
+  // Public balances for every supported token, over RPC. Public data — no
+  // wallet call, no consent prompt.
   const refreshPublicBalance = useCallback(async (addr: string) => {
-    try {
-      const [low, high] = await provider.callContract({
-        contractAddress: CONFIG.strkAddress,
-        entrypoint: "balanceOf",
-        calldata: [addr],
-      });
-      setPublicBalance(BigInt(low) + (BigInt(high) << 128n));
-    } catch {
-      // Non-fatal: the amount field still works without a balance readout.
-    }
+    const entries = await Promise.all(
+      TOKENS.map(async (t) => {
+        try {
+          const [low, high] = await provider.callContract({
+            contractAddress: t.address,
+            entrypoint: "balanceOf",
+            calldata: [addr],
+          });
+          return [t.address, BigInt(low) + (BigInt(high) << 128n)] as const;
+        } catch {
+          return [t.address, 0n] as const;
+        }
+      }),
+    );
+    setPublicBalances(Object.fromEntries(entries));
   }, []);
 
   // Attach to the wallet the user picked in the get-starknet modal: build a
@@ -104,7 +122,7 @@ export function useTipJar() {
     setAccount(null);
     setAddress(null);
     setPrivacySupported(false);
-    setPublicBalance(null);
+    setPublicBalances({});
   }, []);
 
   const refresh = useCallback(async () => {
@@ -174,7 +192,7 @@ export function useTipJar() {
   //
   // Note maturity: the note this creates is spendable ~10 blocks after creation.
   const shield = useCallback(
-    async (amountStrk: string) => {
+    async (token: Token, amountStr: string) => {
       if (!account) throw new Error("connect a wallet first");
       if (!privacySupported) {
         throw new Error("this wallet does not support STRK20");
@@ -184,11 +202,11 @@ export function useTipJar() {
       setError(null);
       setTxPending(true);
       try {
-        const amount = parseStrk(amountStrk);
+        const amount = parseUnits(amountStr, token.decimals);
         const actions: STRK20_ACTION[] = [
           {
             type: "deposit",
-            token: CONFIG.strkAddress,
+            token: token.address,
             amount: `0x${amount.toString(16)}`,
           },
         ];
@@ -210,6 +228,65 @@ export function useTipJar() {
       }
     },
     [account, privacySupported, refreshPublicBalance],
+  );
+
+  // PRIVATE SWAP: trade a shielded token for shielded STRK, via AVNU.
+  //
+  // Both sides stay inside the pool: AVNU withdraws the sell amount to its
+  // executor, routes the swap, and the bought STRK lands back as a new private
+  // note. No anonymizer contract of our own is needed — AVNU deploys the
+  // executor and its SDK orchestrates the privacy_invoke flow.
+  //
+  // The wallet is the prover: it holds keys and notes and generates the proof
+  // (createStrk20WalletProver -> strk20PrepareInvoke). The dapp only describes
+  // the trade. AVNU's paymaster relays it, so gas is sponsored and the user pays
+  // only the pool fee, from their private balance.
+  //
+  // Requires the sell token to already be shielded and matured (steps 1-2).
+  const privateSwapToStrk = useCallback(
+    async (token: Token, amountStr: string) => {
+      if (!account) throw new Error("connect a wallet first");
+      if (!privacySupported) {
+        throw new Error("this wallet does not support STRK20");
+      }
+      if (token.address === STRK.address) {
+        throw new Error("already STRK — no swap needed");
+      }
+      if (submittingRef.current) return undefined;
+      submittingRef.current = true;
+      setError(null);
+      setTxPending(true);
+      try {
+        const sellAmount = parseUnits(amountStr, token.decimals);
+        const [quote] = await getQuotes({
+          sellTokenAddress: token.address,
+          buyTokenAddress: STRK.address,
+          sellAmount,
+          takerAddress: account.address,
+          size: 1,
+        });
+        if (!quote) throw new Error("no route found for this pair");
+
+        const { transactionHash } = await executePrivateSwap({
+          quote,
+          slippage: 0.05,
+          takerAddress: account.address,
+          poolAddress: PRIVACY_POOL_ADDRESS,
+          feeMode: { poolFeeToken: STRK.address },
+          prover: createStrk20WalletProver(account),
+          paymasterApiKey: CONFIG.avnuPaymasterApiKey || undefined,
+        });
+        await provider.waitForTransaction(transactionHash);
+        return transactionHash;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        throw e;
+      } finally {
+        submittingRef.current = false;
+        setTxPending(false);
+      }
+    },
+    [account, privacySupported],
   );
 
   // PRIVATE tip: a transfer-only action spending funds ALREADY shielded.
@@ -291,8 +368,9 @@ export function useTipJar() {
     sendTip,
     sendPrivateTip,
     shield,
+    privateSwapToStrk,
     blocksRemaining,
-    publicBalance,
+    publicBalances,
     tips,
     total,
     count,

@@ -8,6 +8,7 @@ import { TipWall } from "./components/TipWall";
 import { TxLog, type LogEntry } from "./components/TxLog";
 import { COIN_SVG } from "./lib/pixelArt";
 import { formatStrk } from "./lib/tipjar";
+import type { Token } from "./config";
 import { playCoinSound } from "./lib/coinSound";
 import { launchCoinFlight } from "./lib/coinFlight";
 import "./App.css";
@@ -47,10 +48,17 @@ export default function App() {
     return hash;
   };
 
-  const handleShield = async (amount: string) => {
-    const hash = await jar.shield(amount);
+  const handleShield = async (token: Token, amount: string) => {
+    const hash = await jar.shield(token, amount);
     if (!hash) return hash;
-    log("SHIELD", hash, `${amount} STRK`);
+    log("SHIELD", hash, `${amount} ${token.symbol}`);
+    return hash;
+  };
+
+  const handleSwap = async (token: Token, amount: string) => {
+    const hash = await jar.privateSwapToStrk(token, amount);
+    if (!hash) return hash;
+    log("PRIVATE SWAP", hash, `${amount} ${token.symbol} → STRK`);
     return hash;
   };
 
@@ -111,8 +119,9 @@ export default function App() {
               disabled={!jar.address}
               pending={jar.txPending}
               blocksRemaining={jar.blocksRemaining}
-              publicBalance={jar.publicBalance}
+              publicBalances={jar.publicBalances}
               onShield={handleShield}
+              onSwap={handleSwap}
               onTip={handlePrivateTip}
               tipButtonRef={tipButtonRef}
             />

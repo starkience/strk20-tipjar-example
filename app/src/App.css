@@ -167,6 +167,18 @@
   cursor: not-allowed;
 }
 
+/* ---- Token select ----------------------------------------------------- */
+.select {
+  font-family: var(--display);
+  font-size: 11px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  padding: 10px 8px;
+  cursor: pointer;
+  outline: none;
+}
+
 /* ---- Shared amount field --------------------------------------------- */
 .field {
   flex: 1;
