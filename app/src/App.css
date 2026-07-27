@@ -634,3 +634,12 @@
   font-size: 9px;
   color: #71717a;
 }
+
+/* Chunky arrow inside step labels */
+.step__arrow {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--gold-dark);
+  vertical-align: -1px;
+  margin: 0 2px;
+}

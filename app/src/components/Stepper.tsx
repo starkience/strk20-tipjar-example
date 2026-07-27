@@ -20,7 +20,7 @@ type StepState = "done" | "active" | "locked";
 
 function Step(props: {
   n: number;
-  label: string;
+  label: React.ReactNode;
   state: StepState;
   children?: React.ReactNode;
 }) {
@@ -112,7 +112,7 @@ export function Stepper(props: {
   const ofInterest = isStrk ? [STRK] : [token, STRK];
 
   const s1: StepState = shieldedNow ? "done" : "active";
-  const s2: StepState = checked ? "done" : shieldedNow ? "active" : "locked";
+  const s2: StepState = checked ? "done" : "active";
   const s3: StepState = maturing ? "active" : shieldedNow ? "done" : "locked";
   const s4: StepState =
     isStrk || swapped ? "done" : shieldedNow ? "active" : "locked";
@@ -211,7 +211,16 @@ export function Stepper(props: {
         </span>
       </Step>
 
-      <Step n={4} label={`SWAP → ${STRK.symbol}`} state={s4}>
+      <Step
+        n={4}
+        label={
+          <>
+            PRIVATE SWAP <span className="step__arrow">▶</span>{" "}
+            {STRK.symbol}
+          </>
+        }
+        state={s4}
+      >
         {isStrk ? (
           <span className="step__count">—</span>
         ) : (

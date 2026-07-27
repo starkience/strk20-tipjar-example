@@ -86,6 +86,8 @@ export function useTipJar() {
   // React state lags a render, so a fast double-click can slip a second tx
   // through. A ref updates immediately and blocks that. Prevents double-shields.
   const submittingRef = useRef(false);
+  // Tokens the user last asked to reveal, so refreshes can repeat that query.
+  const shieldedQueryRef = useRef<Token[] | null>(null);
 
   // Public balances for every listed token, in ONE batched RPC request.
   const refreshPublicBalance = useCallback(
@@ -126,6 +128,7 @@ export function useTipJar() {
     setPrivacySupported(false);
     setPublicBalances({});
     setShieldedBalances(null);
+    shieldedQueryRef.current = null;
   }, []);
 
   const refresh = useCallback(async () => {
@@ -152,6 +155,44 @@ export function useTipJar() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
+
+  // Ask the WALLET for the user's own shielded balances. This is a disclosure:
+  // the wallet prompts for consent before answering. Wired to an explicit button
+  // so it is always the user's decision — the dapp still never sees a viewing
+  // key, only the numbers for the tokens it names.
+  const readShieldedBalances = useCallback(
+    async (wanted: Token[]) => {
+      shieldedQueryRef.current = wanted;
+      if (!account) throw new Error("connect a wallet first");
+      setError(null);
+      try {
+        const entries = await account.strk20Balances(
+          wanted.map((t) => t.address),
+        );
+        const map: Record<string, bigint> = {};
+        for (const t of wanted) {
+          const hit = entries.find(
+            (e) => BigInt(e.token) === BigInt(t.address),
+          );
+          map[t.address] = hit ? BigInt(hit.balance) : 0n;
+        }
+        setShieldedBalances(map);
+        return map;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        throw e;
+      }
+    },
+    [account],
+  );
+
+  // Re-read after an action the user took, but ONLY if they already chose to
+  // reveal balances — otherwise this would fire an unsolicited consent prompt.
+  const refreshShieldedIfShown = useCallback(async () => {
+    const wanted = shieldedQueryRef.current;
+    if (!wanted) return;
+    await readShieldedBalances(wanted).catch(() => {});
+  }, [readShieldedBalances]);
 
   // PUBLIC tip: unchanged. approve + tip multicall through the normal account
   // API (WalletAccountV6 inherits `execute`), then wait and refresh.
@@ -221,6 +262,7 @@ export function useTipJar() {
         setShieldedAtBlock(head);
         setCurrentBlock(head);
         void refreshPublicBalance(account.address);
+        void refreshShieldedIfShown();
         return transaction_hash;
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -230,36 +272,7 @@ export function useTipJar() {
         setTxPending(false);
       }
     },
-    [account, privacySupported, refreshPublicBalance],
-  );
-
-  // Ask the WALLET for the user's own shielded balances. This is a disclosure:
-  // the wallet prompts for consent before answering. Wired to an explicit button
-  // so it is always the user's decision — the dapp still never sees a viewing
-  // key, only the numbers for the tokens it names.
-  const readShieldedBalances = useCallback(
-    async (wanted: Token[]) => {
-      if (!account) throw new Error("connect a wallet first");
-      setError(null);
-      try {
-        const entries = await account.strk20Balances(
-          wanted.map((t) => t.address),
-        );
-        const map: Record<string, bigint> = {};
-        for (const t of wanted) {
-          const hit = entries.find(
-            (e) => BigInt(e.token) === BigInt(t.address),
-          );
-          map[t.address] = hit ? BigInt(hit.balance) : 0n;
-        }
-        setShieldedBalances(map);
-        return map;
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-        throw e;
-      }
-    },
-    [account],
+    [account, privacySupported, refreshPublicBalance, refreshShieldedIfShown],
   );
 
   // PRIVATE SWAP: trade a shielded token for shielded STRK, via AVNU.
@@ -309,6 +322,7 @@ export function useTipJar() {
           paymasterApiKey: CONFIG.avnuPaymasterApiKey || undefined,
         });
         await provider.waitForTransaction(transactionHash);
+        void refreshShieldedIfShown();
         return transactionHash;
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -318,7 +332,7 @@ export function useTipJar() {
         setTxPending(false);
       }
     },
-    [account, privacySupported],
+    [account, privacySupported, refreshShieldedIfShown],
   );
 
   // PRIVATE tip: a transfer-only action spending funds ALREADY shielded.
