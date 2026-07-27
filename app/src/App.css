@@ -167,16 +167,72 @@
   cursor: not-allowed;
 }
 
-/* ---- Token select ----------------------------------------------------- */
-.select {
+/* ---- Token select (custom 8-bit dropdown) ---------------------------- */
+.tokensel {
+  position: relative;
+  flex: 0 0 auto;
+}
+.tokensel__btn {
   font-family: var(--display);
   font-size: 11px;
   color: var(--ink);
   background: var(--paper);
   border: 3px solid var(--ink);
-  padding: 10px 8px;
+  padding: 11px 10px;
   cursor: pointer;
-  outline: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 100%;
+}
+.tokensel__btn:hover {
+  background: var(--gold-lit);
+}
+.tokensel__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.tokensel__caret {
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1;
+}
+.tokensel__list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+.tokensel__opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: var(--display);
+  font-size: 11px;
+  color: var(--ink);
+  background: var(--paper);
+  border: none;
+  border-bottom: 3px solid var(--ink);
+  padding: 10px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tokensel__list li:last-child .tokensel__opt {
+  border-bottom: none;
+}
+.tokensel__opt:hover {
+  background: var(--gold-lit);
+}
+.tokensel__opt.is-active {
+  background: var(--ink);
+  color: var(--gold-lit);
 }
 
 /* ---- Shared amount field --------------------------------------------- */

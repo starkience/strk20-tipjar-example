@@ -5,8 +5,9 @@
 // app itself did (did you shield in this session, has that note matured) and
 // from PUBLIC token balances. Tipping is always available; the wallet enforces
 // sufficient funds. The swap step is skipped when you shielded STRK already.
-import { useState, type Ref } from "react";
+import { useEffect, useState, type Ref } from "react";
 import { STRK, TOKENS, type Token } from "../config";
+import { TokenSelect } from "./TokenSelect";
 import { formatUnits } from "../lib/tipjar";
 
 type StepState = "done" | "active" | "locked";
@@ -43,6 +44,19 @@ export function Stepper(props: {
   const [tipAmount, setTipAmount] = useState("1");
   const [swapped, setSwapped] = useState(false);
 
+  // Only offer tokens the user actually holds. Before balances load (or if they
+  // hold none) fall back to the full list so the control is never empty.
+  const held = TOKENS.filter((t) => (props.publicBalances[t.address] ?? 0n) > 0n);
+  const available = held.length > 0 ? held : TOKENS;
+
+  // If the selected token isn't one they hold, move to the first that is.
+  useEffect(() => {
+    if (!available.some((t) => t.address === token.address)) {
+      setToken(available[0]);
+      setSwapped(false);
+    }
+  }, [available, token.address]);
+
   const shieldedNow = props.blocksRemaining !== null;
   const maturing = shieldedNow && props.blocksRemaining! > 0;
   const isStrk = token.address === STRK.address;
@@ -57,24 +71,15 @@ export function Stepper(props: {
     <ol className="stepper">
       <Step n={1} label="SHIELD" state={s1}>
         <div className="step__row">
-          <select
-            className="select"
-            value={token.address}
-            onChange={(e) => {
-              const t = TOKENS.find((x) => x.address === e.target.value);
-              if (t) {
-                setToken(t);
-                setSwapped(false);
-              }
+          <TokenSelect
+            tokens={available}
+            value={token}
+            disabled={props.disabled}
+            onChange={(t) => {
+              setToken(t);
+              setSwapped(false);
             }}
-            aria-label="Token to shield"
-          >
-            {TOKENS.map((t) => (
-              <option key={t.address} value={t.address}>
-                {t.symbol}
-              </option>
-            ))}
-          </select>
+          />
           <span className="field">
             <input
               className="field__input"
