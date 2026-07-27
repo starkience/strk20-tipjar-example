@@ -108,9 +108,17 @@ export function Stepper(props: {
   const balance = props.publicBalances[token.address];
   const checked = props.shieldedBalances !== null;
 
-  // Worth reporting in step 2: what was shielded, plus STRK (what a tip is sent
-  // in) when they differ.
-  const ofInterest = isStrk ? [STRK] : [token, STRK];
+  // Report every token, not just the selected one: after shielding all your
+  // USDC your PUBLIC USDC is 0, so a list keyed off public holdings would drop
+  // it exactly when you want to confirm it is shielded.
+  const shieldedRows = props.shieldedBalances
+    ? props.tokens
+        .filter((t) => (props.shieldedBalances![t.address] ?? 0n) > 0n)
+        .map((t) => ({
+          symbol: t.symbol,
+          text: formatDisplay(props.shieldedBalances![t.address]!, t.decimals),
+        }))
+    : [];
 
   const s1: StepState = shieldedNow ? "done" : "active";
   const s2: StepState = checked ? "done" : "active";
@@ -177,22 +185,20 @@ export function Stepper(props: {
             className="btn btn--ghost"
             type="button"
             disabled={props.disabled}
-            onClick={() => props.onShowShielded(ofInterest).catch(() => {})}
+            onClick={() => props.onShowShielded(props.tokens).catch(() => {})}
           >
             SHOW
           </button>
-          <span className="step__meta">
-            {props.shieldedBalances
-              ? ofInterest
-                  .map(
-                    (t) =>
-                      `${formatDisplay(
-                        props.shieldedBalances![t.address] ?? 0n,
-                        t.decimals,
-                      )} ${t.symbol}`,
-                  )
-                  .join(" · ")
-              : "—"}
+          <span className="step__balances">
+            {!props.shieldedBalances
+              ? "—"
+              : shieldedRows.length === 0
+                ? "NONE"
+                : shieldedRows.map((r) => (
+                    <span key={r.symbol} className="step__bal">
+                      {r.text} {r.symbol}
+                    </span>
+                  ))}
           </span>
         </div>
       </Step>

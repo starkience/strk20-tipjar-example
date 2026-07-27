@@ -658,3 +658,17 @@
 .txlog__row.is-session .txlog__hash {
   color: #1c4fd8;
 }
+
+/* Shielded balances list (step 2) */
+.step__balances {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-family: var(--display);
+  font-size: 11px;
+  color: var(--gold-dark);
+}
+.step__bal {
+  white-space: nowrap;
+}
