@@ -1,11 +1,12 @@
 // FlowDiagram — shows what the selected mode actually does on-chain.
 //
-//   PUBLIC   YOU ──tip──▶ JAR ──▶ CREATOR        (all visible)
-//   PRIVATE  YOU ──shield──▶ POOL ──send──▶ CREATOR   (one atomic tx)
+//   PUBLIC   YOU ──tip──▶ JAR ──▶ CREATOR              (all visible, 1 tx)
+//   PRIVATE  YOU ··shield··▶ POOL ──send──▶ CREATOR     (two SEPARATE txs)
 //
-// This is the app's main teaching surface: the private path is a single
-// strk20InvokeTransaction carrying BOTH a deposit (shield) and a transfer, so
-// the diagram draws them as two steps under one "1 ATOMIC TX" bracket.
+// This is the app's main teaching surface. The private path is deliberately
+// DECOUPLED: shielding happens in its own earlier transaction (drawn dashed),
+// so the tip itself carries no public leg linking it to the tipper. Bundling
+// them would let an observer correlate the deposit with the transfer.
 // The forwarded ref marks the CREATOR node — the coin-flight animation target.
 import { forwardRef } from "react";
 import { COIN_SVG, JAR_SVG, VAULT_SVG, WALLET_SVG } from "../lib/pixelArt";
@@ -24,9 +25,9 @@ export const FlowDiagram = forwardRef<HTMLDivElement, { isPrivate: boolean }>(
         </div>
 
         <div className="flow__arrow">
-          <span className="flow__step">{isPrivate ? "SHIELD" : "TIP"}</span>
+          <span className="flow__step">{isPrivate ? "SHIELD ⏱" : "TIP"}</span>
           <span className="flow__line" aria-hidden>
-            ──▶
+            {isPrivate ? "··▶" : "──▶"}
           </span>
         </div>
 
@@ -57,7 +58,7 @@ export const FlowDiagram = forwardRef<HTMLDivElement, { isPrivate: boolean }>(
 
         <p className="flow__caption">
           {isPrivate
-            ? "1 ATOMIC TX · SENDER & AMOUNT HIDDEN · +POOL FEE"
+            ? "SHIELD EARLIER (⏱ SEPARATE TX) · THE TIP LEAKS NOTHING"
             : "1 TX · SENDER & AMOUNT PUBLIC"}
         </p>
       </div>

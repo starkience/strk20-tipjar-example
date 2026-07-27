@@ -44,6 +44,9 @@ export function useTipJar() {
   const [account, setAccount] = useState<WalletAccountV6 | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [privacySupported, setPrivacySupported] = useState(false);
+  // The user's own shielded balance — only populated when they explicitly ask
+  // (readShieldedBalance), since that read prompts the wallet for consent.
+  const [shieldedBalance, setShieldedBalance] = useState<bigint | null>(null);
   const [tips, setTips] = useState<TipEvent[]>([]);
   const [total, setTotal] = useState<bigint>(0n);
   const [count, setCount] = useState<number>(0);
@@ -75,6 +78,7 @@ export function useTipJar() {
     setAccount(null);
     setAddress(null);
     setPrivacySupported(false);
+    setShieldedBalance(null);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -133,16 +137,77 @@ export function useTipJar() {
     [account, refresh],
   );
 
-  // PRIVATE tip: the STRK20 path. A batched deposit + transfer — shield exactly
-  // the tip amount from public STRK, then privately transfer it to the creator
-  // inside the pool. Sourcing from public STRK every time means the app never
-  // reads the tipper's shielded balance (least privilege — only `deposit` +
-  // `transfer` are used). The wallet holds the viewing key, selects notes, and
-  // generates the proof; the dapp only describes the actions.
+  // SHIELD: deposit public STRK into the pool, as its own transaction.
   //
-  // Unlike the public path this calls NO contract and emits NO `Tipped` event,
-  // so a private tip never appears in the tip wall. On-chain, an observer sees a
-  // pool interaction and the (public) shield leg — not the tipper->creator link.
+  // This is step 1 of the DECOUPLED flow. Shielding separately (rather than
+  // bundling it into the tip) is what breaks the on-chain link: the deposit is a
+  // public leg from your address, so keeping it in the same transaction as the
+  // tip lets an observer correlate the two. Shield now, tip later, and the tip
+  // transaction carries no public leg at all.
+  //
+  // Note maturity: the note this creates is spendable ~10 blocks after creation.
+  const shield = useCallback(
+    async (amountStrk: string) => {
+      if (!account) throw new Error("connect a wallet first");
+      if (!privacySupported) {
+        throw new Error("this wallet does not support STRK20");
+      }
+      if (submittingRef.current) return undefined;
+      submittingRef.current = true;
+      setError(null);
+      setTxPending(true);
+      try {
+        const amount = parseStrk(amountStrk);
+        const actions: STRK20_ACTION[] = [
+          {
+            type: "deposit",
+            token: CONFIG.strkAddress,
+            amount: `0x${amount.toString(16)}`,
+          },
+        ];
+        const { transaction_hash } =
+          await account.strk20InvokeTransaction(actions);
+        await provider.waitForTransaction(transaction_hash);
+        return transaction_hash;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        throw e;
+      } finally {
+        submittingRef.current = false;
+        setTxPending(false);
+      }
+    },
+    [account, privacySupported],
+  );
+
+  // Read the user's OWN shielded balance — wallet-mediated, so it prompts for
+  // consent. Deliberately NOT called automatically: it runs only when the user
+  // explicitly asks, so the prompt is never a surprise. The dapp never sees a
+  // viewing key; the wallet returns only balances for the tokens we name.
+  const readShieldedBalance = useCallback(async () => {
+    if (!account) throw new Error("connect a wallet first");
+    setError(null);
+    try {
+      const entries = await account.strk20Balances([CONFIG.strkAddress]);
+      const entry = entries.find(
+        (e) => BigInt(e.token) === BigInt(CONFIG.strkAddress),
+      );
+      const bal = entry ? BigInt(entry.balance) : 0n;
+      setShieldedBalance(bal);
+      return bal;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      throw e;
+    }
+  }, [account]);
+
+  // PRIVATE tip: a transfer-only action spending funds ALREADY shielded.
+  //
+  // Step 2 of the decoupled flow. Because there is no deposit leg, this
+  // transaction has no public sender, amount, or recipient — and the wallet
+  // submits it via a paymaster, so the tx sender isn't the tipper either.
+  // It calls NO contract and emits NO `Tipped` event, so it never appears in
+  // the public tip wall. Requires a matured shielded balance (see `shield`).
   const sendPrivateTip = useCallback(
     async (amountStrk: string) => {
       if (!account) throw new Error("connect a wallet first");
@@ -155,13 +220,11 @@ export function useTipJar() {
       setTxPending(true);
       try {
         const amount = parseStrk(amountStrk);
-        const felt = `0x${amount.toString(16)}`;
         const actions: STRK20_ACTION[] = [
-          { type: "deposit", token: CONFIG.strkAddress, amount: felt },
           {
             type: "transfer",
             token: CONFIG.strkAddress,
-            amount: felt,
+            amount: `0x${amount.toString(16)}`,
             recipient: CONFIG.ownerAddress,
           },
         ];
@@ -193,6 +256,9 @@ export function useTipJar() {
     privacySupported,
     sendTip,
     sendPrivateTip,
+    shield,
+    shieldedBalance,
+    readShieldedBalance,
     tips,
     total,
     count,

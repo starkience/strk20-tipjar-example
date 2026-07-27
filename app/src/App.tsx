@@ -4,6 +4,7 @@ import { useTipJar } from "./hooks/useTipJar";
 import { ModeToggle } from "./components/ModeToggle";
 import { FlowDiagram } from "./components/FlowDiagram";
 import { TipForm } from "./components/TipForm";
+import { PoolPanel } from "./components/PoolPanel";
 import { TipWall } from "./components/TipWall";
 import { TxLog } from "./components/TxLog";
 import { COIN_SVG } from "./lib/pixelArt";
@@ -84,6 +85,16 @@ export default function App() {
             onSubmit={handleSubmit}
             buttonRef={tipButtonRef}
           />
+
+          {isPrivate && (
+            <PoolPanel
+              disabled={!jar.address}
+              pending={jar.txPending}
+              balance={jar.shieldedBalance}
+              onShield={jar.shield}
+              onCheckBalance={jar.readShieldedBalance}
+            />
+          )}
 
           {jar.address && !jar.privacySupported && (
             <p className="note">PRIVATE NEEDS A READY WALLET</p>
