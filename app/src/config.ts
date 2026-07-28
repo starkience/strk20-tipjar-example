@@ -81,7 +81,15 @@ export const POOL_FEE_STRK = 4n * 10n ** 18n;
  * See docs/DEPLOYMENT.md → "Running on Sepolia".
  */
 export const CONFIG = {
-  rpcUrl: import.meta.env.VITE_RPC_URL ?? "https://rpc.starknet.lava.build/rpc/v0_9",
+  // Public JSON-RPC endpoint — mainnet, pinned to RPC spec v0.10 (starknet.js
+  // 10.4 speaks 0.10.3). The Alchemy key in this URL is a READ-ONLY, rate-
+  // limited PROVIDER key: it can only read a public chain, so it is safe to ship
+  // in the client — unlike the AVNU paymaster SPEND key, which stays server-side
+  // (see app/api/paymaster.ts). Override per deployment with VITE_RPC_URL (your
+  // own Alchemy/Infura/Lava endpoint) — e.g. to raise rate limits or change spec.
+  rpcUrl:
+    import.meta.env.VITE_RPC_URL ??
+    "https://starknet-mainnet.g.alchemy.com/starknet/version/rpc/v0_10/6e6ntRee9DYgQFYqVffLB",
   strkAddress: STRK.address,
   // Live mainnet deployment (Task 6). Point these at your own jar — see
   // docs/DEPLOYMENT.md — or override without editing code via .env.local.
