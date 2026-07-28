@@ -542,25 +542,23 @@ export function useTipJar(opts?: {
         clearHints();
         log({ id, hash: transactionHash, detail: swapDetail });
         const status = await settle(transactionHash);
-        log({ id, status });
 
-        // Only claim the swap succeeded when the chain confirms it did.
-        // Returning the hash regardless made the UI mark "SWAPPED" even on a
-        // revert, and AVNU's paymaster can revert-and-retry, so a hash is not
-        // proof. On anything but a confirmed success, return undefined so the
-        // step does not advance and the user is told to verify.
-        if (status === "reverted") {
+        // The hash AVNU's SDK returns is NOT reliably the tx that lands: the
+        // paymaster can revert that attempt and retry, so the swap can succeed
+        // under a DIFFERENT hash than the one we hold (confirmed on mainnet:
+        // SDK hash 0x7975…, actual success 0x4ab8…). settle() on this hash is
+        // therefore inconclusive — a "reverted" here can still mean the swap
+        // succeeded on a retry. So only mark "ok" when the chain confirms this
+        // exact hash; on anything else leave the row unconfirmed (do NOT mark
+        // it reverted, which would be a false negative) and point the user at
+        // the one reliable signal — their shielded STRK.
+        if (status !== "ok") {
           setError(
-            "PRIVATE SWAP REVERTED — CHECK YOUR SHIELDED STRK (SHOW) BEFORE RETRYING",
+            "SWAP SENT — THE PAYMASTER MAY LAND IT UNDER A DIFFERENT HASH. PRESS SHOW TO CHECK YOUR SHIELDED STRK BEFORE TIPPING OR RETRYING.",
           );
           return undefined;
         }
-        if (status === "pending") {
-          setError(
-            "SWAP SUBMITTED BUT NOT YET CONFIRMED — PRESS SHOW TO CHECK YOUR SHIELDED STRK BEFORE TIPPING",
-          );
-          return undefined;
-        }
+        log({ id, status: "ok" });
         // Confirmed. A swap credits a NEW note, subject to the same ~10-block
         // maturity as a shield — re-anchor the countdown so tipping straight
         // after does not spend an immature note.
