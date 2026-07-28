@@ -8,7 +8,13 @@ import { Stepper } from "./components/Stepper";
 import { TipForm } from "./components/TipForm";
 import { TipWall } from "./components/TipWall";
 import { TxLog } from "./components/TxLog";
-import { mergeLog, upsertTx, type LogEntry } from "./lib/txlog";
+import {
+  loadSession,
+  mergeLog,
+  saveSession,
+  upsertTx,
+  type LogEntry,
+} from "./lib/txlog";
 import { COIN_SVG } from "./lib/pixelArt";
 import { formatDisplay } from "./lib/tipjar";
 import type { Token } from "./config";
@@ -27,6 +33,21 @@ export default function App() {
     onLog: (patch) => setSession((s) => upsertTx(s, { session: true, ...patch })),
   });
   const { connected } = useConnect();
+
+  // Persist the log so it survives a reload. The panel is the ONLY record of a
+  // private transaction (no contract, no event), so without this every shield,
+  // swap and private tip vanished on refresh — the "my transactions aren't
+  // reflected" report. Rows are scoped to the connected address: rehydrate that
+  // address's rows on connect, and save on every change. On disconnect we clear
+  // the view but DON'T wipe storage, so reconnecting restores the history.
+  const jarAddress = jar.address;
+  useEffect(() => {
+    setSession(jarAddress ? loadSession(jarAddress) : []);
+  }, [jarAddress]);
+  useEffect(() => {
+    if (jarAddress) saveSession(jarAddress, session);
+  }, [jarAddress, session]);
+
   const tipButtonRef = useRef<HTMLButtonElement>(null);
   const coinTargetRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);

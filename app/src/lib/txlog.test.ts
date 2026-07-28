@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { mergeLog, upsertTx, type LogEntry } from "./txlog";
+import {
+  capSession,
+  mergeLog,
+  storageKey,
+  upsertTx,
+  type LogEntry,
+} from "./txlog";
 
 const row = (over: Partial<LogEntry> & { id: string }): LogEntry => ({
   kind: "SHIELD",
@@ -80,5 +86,40 @@ describe("mergeLog", () => {
   it("gives chain tips a stable id derived from their hash", () => {
     const merged = mergeLog([], [{ kind: "PUBLIC TIP", time: 0, hash: "0xold" }]);
     expect(merged[0].id).toBe("0xold");
+  });
+
+  // The wallet and the RPC can spell the same tx hash with different leading-zero
+  // padding. A raw string compare misses the match and renders the tip twice —
+  // the exact felt-vs-string bug address.ts already fixes for token addresses.
+  it("dedups a chain tip whose hash differs from the session row only in padding", () => {
+    const session = [
+      row({ id: "a", kind: "PUBLIC TIP", hash: "0x0abc", session: true }),
+    ];
+    const chain = [{ kind: "PUBLIC TIP", time: 0, hash: "0xabc" }]; // same felt
+    const merged = mergeLog(session, chain);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].id).toBe("a");
+  });
+});
+
+describe("capSession", () => {
+  it("keeps only the newest N rows (newest are first)", () => {
+    const many = Array.from({ length: 60 }, (_, i) => row({ id: `t${i}` }));
+    const capped = capSession(many, 50);
+    expect(capped).toHaveLength(50);
+    expect(capped[0].id).toBe("t0"); // newest kept
+    expect(capped[49].id).toBe("t49"); // oldest beyond the cap dropped
+  });
+
+  it("leaves a short log untouched", () => {
+    const few = [row({ id: "a" }), row({ id: "b" })];
+    expect(capSession(few, 50)).toBe(few);
+  });
+});
+
+describe("storageKey", () => {
+  it("is scoped per address, by canonical felt so padding never splits a key", () => {
+    expect(storageKey("0xabc")).toBe(storageKey("0x0abc"));
+    expect(storageKey("0xabc")).not.toBe(storageKey("0xdef"));
   });
 });

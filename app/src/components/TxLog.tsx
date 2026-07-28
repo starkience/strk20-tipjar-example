@@ -90,13 +90,32 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
           <li
             key={e.id}
             className={`txlog__row ${e.session ? "is-session" : ""} ${
-              e.status === "reverted" ? "is-reverted" : ""
+              e.status === "reverted"
+                ? "is-reverted"
+                : e.status === "unconfirmed"
+                  ? "is-unconfirmed"
+                  : e.status === "failed"
+                    ? "is-failed"
+                    : ""
             }`}
           >
             <span className="txlog__kind">
               {e.kind}
+              {/* Each status is a distinct truth, and each gets distinct copy:
+                  a rejection ("NOT SENT") must never read like an on-chain
+                  revert, and "we couldn't confirm" ("UNCONFIRMED") must never
+                  read like either. */}
               {e.status === "reverted" && (
                 <span className="txlog__status txlog__status--bad"> REVERTED</span>
+              )}
+              {e.status === "unconfirmed" && (
+                <span className="txlog__status txlog__status--warn">
+                  {" "}
+                  UNCONFIRMED
+                </span>
+              )}
+              {e.status === "failed" && (
+                <span className="txlog__status txlog__status--muted"> NOT SENT</span>
               )}
               {e.status === "pending" && (
                 <span className="txlog__status"> PENDING</span>
@@ -114,17 +133,33 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
               </a>
             ) : (
               // No hash yet: the wallet hasn't returned one. The row still
-              // stands so the transaction is never invisible. "waiting for
-              // wallet" is the accurate cause — a private tx can be proven and
-              // delivered before the wallet hands its hash back to the dapp.
+              // stands so the transaction is never invisible. The placeholder
+              // states the accurate cause for each case — a private tx can be
+              // proven and delivered before the wallet hands its hash back.
               <span className="txlog__hash txlog__hash--nolink">
-                {e.status === "pending" ? "waiting for wallet…" : "no tx hash"}
+                {e.status === "pending"
+                  ? "waiting for wallet…"
+                  : e.status === "unconfirmed"
+                    ? "unconfirmed — press SHOW to verify"
+                    : e.status === "failed"
+                      ? "not sent"
+                      : "no tx hash"}
               </span>
             )}
           </li>
         ))}
         {props.entries.length === 0 && <li className="txlog__empty">—</li>}
       </ul>
+
+      {/* The honest answer to "why didn't my private tip show in my wallet?".
+          A private transfer calls no contract and emits no public Transfer
+          event tied to your address, so a wallet's activity list has nothing to
+          render — that unlinkability is the whole point. This log (and SHOW) is
+          where you confirm it, not your wallet history. */}
+      <p className="txlog__note">
+        Private sends leave no public trace — they won't appear in your wallet
+        history or the tip wall. Confirm them here, or with SHOW.
+      </p>
     </aside>
   );
 }

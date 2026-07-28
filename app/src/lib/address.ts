@@ -14,3 +14,10 @@ export function sameAddress(a: string, b: string): boolean {
     return false;
   }
 }
+
+// Transaction hashes are felts too, and the same hash comes back spelled two
+// ways: a wallet / RPC often returns the minimal `0xabc…` while another source
+// returns the zero-padded `0x0abc…`. Comparing those as raw strings fails — the
+// exact bug `normalizeAddress` fixes for token addresses — so the tx-log dedup
+// must canonicalize a hash before using it as a key.
+export const normalizeHash = normalizeAddress;

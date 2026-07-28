@@ -886,6 +886,16 @@
   background: #fff1f0;
   border-color: var(--red);
 }
+/* Unconfirmed: it MIGHT have landed — amber "attention", not red "failed". */
+.txlog__row.is-unconfirmed {
+  background: #fffbeb;
+  border-color: #f59e0b;
+}
+/* Failed to send: nothing happened. Neutral — no alarm, safe to retry. */
+.txlog__row.is-failed {
+  background: #fafafa;
+  border-color: #d4d4d8;
+}
 .txlog__status {
   font-family: var(--display);
   font-size: 8px;
@@ -893,4 +903,17 @@
 }
 .txlog__status--bad {
   color: var(--red);
+}
+.txlog__status--warn {
+  color: #b45309;
+}
+.txlog__status--muted {
+  color: #71717a;
+}
+/* Honest footnote: private sends never appear in a wallet's activity list. */
+.txlog__note {
+  margin: 10px 4px 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #a1a1aa;
 }

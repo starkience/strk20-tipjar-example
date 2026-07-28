@@ -37,11 +37,6 @@ import {
 
 const provider = new RpcProvider({ nodeUrl: CONFIG.rpcUrl });
 
-/**
- * Wait for confirmation, but never block the UI forever. Paymaster-relayed
- * transactions can take a while to become visible to our RPC, and a hung await
- * would leave buttons disabled with no feedback.
- */
 // Note: there is deliberately NO automatic timeout on wallet calls. Proving a
 // private transaction legitimately takes minutes, and auto-releasing the lock
 // mid-proof would re-enable the button while the request is still live — which
@@ -49,34 +44,83 @@ const provider = new RpcProvider({ nodeUrl: CONFIG.rpcUrl });
 // CANCEL control is the escape hatch instead: a human decides, having been told
 // the request may still be in flight.
 
-export type TxStatus = "pending" | "ok" | "reverted";
+/** How long to poll for an on-chain result before declaring a row unconfirmed. */
+const PUBLIC_CONFIRM_MS = 60_000;
+const PRIVATE_CONFIRM_MS = 90_000; // proving + relay + inclusion runs longer.
+/** How long a background upgrade keeps watching an unconfirmed (trusted) hash. */
+const LATE_WATCH_MS = 4 * 60_000;
+
+/** What the CHAIN says about a hash. "unknown" ≠ failure — see settle(). */
+type SettleOutcome = "ok" | "reverted" | "unknown";
 
 /**
- * Wait for confirmation and report what actually happened. A transaction can be
- * accepted on-chain and still REVERT — the relayer retried our swap and the
- * first attempt reverted in the same block — so "submitted" is not "worked".
- * Never blocks forever: paymaster-relayed hashes can take a while to become
- * visible, and an unbounded await would strand the UI.
+ * Poll for the on-chain outcome of `hash`, re-checking until it is visible or
+ * the window elapses. Reports honestly:
+ *   "ok"       — the receipt reports SUCCEEDED.
+ *   "reverted" — the receipt reports REVERTED (accepted, execution failed).
+ *   "unknown"  — not visible within the window. This is NOT a failure: a
+ *                paymaster can land a private tx under a DIFFERENT hash than the
+ *                one it handed back, and inclusion can simply lag — so callers
+ *                mark such a row "unconfirmed", never "reverted".
+ *
+ * `waitForTransaction` is deliberately not used: in starknet.js v10 it does not
+ * reject on revert (its default errorStates are empty) and it gives up after a
+ * fixed retry budget. A plain receipt poll re-checks for the whole window and
+ * reads `execution_status`, which is a top-level field on the v10 receipt.
  */
-async function settle(hash: string, ms = 60_000): Promise<TxStatus> {
-  try {
-    await Promise.race([
-      provider.waitForTransaction(hash),
-      new Promise((resolve) => setTimeout(resolve, ms)),
-    ]);
-  } catch {
-    // waitForTransaction rejects on revert — the receipt below tells us which.
+async function settle(hash: string, ms = PUBLIC_CONFIRM_MS): Promise<SettleOutcome> {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    try {
+      const receipt = (await provider.getTransactionReceipt(hash)) as {
+        execution_status?: string;
+      };
+      if (receipt?.execution_status === "REVERTED") return "reverted";
+      if (receipt?.execution_status === "SUCCEEDED") return "ok";
+    } catch {
+      // Not visible yet (TXN_HASH_NOT_FOUND) — keep polling until the deadline.
+    }
+    if (Date.now() >= deadline) return "unknown";
+    await new Promise((r) => setTimeout(r, 3000));
   }
-  try {
-    const receipt = (await provider.getTransactionReceipt(hash)) as {
-      execution_status?: string;
-    };
-    if (receipt?.execution_status === "REVERTED") return "reverted";
-    if (receipt?.execution_status === "SUCCEEDED") return "ok";
-  } catch {
-    // Not visible yet — leave it pending rather than claiming success.
-  }
-  return "pending";
+}
+
+/**
+ * Keep watching an "unconfirmed" row in the background and upgrade it the moment
+ * the chain shows a result — so a transaction that lands late stops reading
+ * "unconfirmed" without the user lifting a finger. The row is addressed by its
+ * client id, so a late patch is always safe. Fire-and-forget and time-bounded.
+ *
+ * ONLY use this on a hash we trust to be the one that actually lands (a wallet's
+ * own submission). Never on AVNU's SDK hash: its paymaster can revert-and-retry
+ * under a new hash, so a "reverted" reading there is a false negative.
+ */
+function watchLate(
+  log: (patch: LogPatch) => void,
+  id: string,
+  hash: string,
+  ms = LATE_WATCH_MS,
+): void {
+  const deadline = Date.now() + ms;
+  const tick = async () => {
+    try {
+      const receipt = (await provider.getTransactionReceipt(hash)) as {
+        execution_status?: string;
+      };
+      if (receipt?.execution_status === "REVERTED") {
+        log({ id, status: "reverted" });
+        return;
+      }
+      if (receipt?.execution_status === "SUCCEEDED") {
+        log({ id, status: "ok" });
+        return;
+      }
+    } catch {
+      // still not visible
+    }
+    if (Date.now() < deadline) setTimeout(tick, 6000);
+  };
+  setTimeout(tick, 6000);
 }
 
 /** Notes mature 10 blocks after creation — they cannot be spent before that. */
@@ -355,12 +399,22 @@ export function useTipJar(opts?: {
         );
         const { transaction_hash } = await account.execute(calls);
         log({ id, hash: transaction_hash });
-        log({ id, status: await settle(transaction_hash) });
+        const outcome = await settle(transaction_hash, PUBLIC_CONFIRM_MS);
+        if (outcome === "unknown") {
+          // Submitted with a canonical wallet hash but not visible yet — keep
+          // watching so the row confirms itself when it lands.
+          log({ id, status: "unconfirmed" });
+          watchLate(log, id, transaction_hash);
+        } else {
+          log({ id, status: outcome });
+        }
         await refresh();
         void refreshPublicBalance(account.address);
         return transaction_hash;
       } catch (e) {
-        log({ id, status: "reverted" });
+        // A throw here is a rejection or a pre-submit error — nothing reached
+        // the chain, so it is "failed" (safe to retry), NOT a revert.
+        log({ id, status: "failed" });
         setError(friendlyError(e));
         throw e;
       } finally {
@@ -447,7 +501,21 @@ export function useTipJar(opts?: {
 
         if ("hash" in outcome) {
           log({ id, hash: outcome.hash });
-          log({ id, status: await settle(outcome.hash) });
+          const status = await settle(outcome.hash);
+          if (status === "reverted") {
+            log({ id, status: "reverted" });
+            setError("SHIELD REVERTED — CHECK YOUR BALANCE BEFORE RETRYING");
+            return undefined;
+          }
+          if (status === "unknown") {
+            // Submitted with the wallet's own hash but not visible yet — keep
+            // watching so the row confirms itself, and anchor maturity
+            // optimistically (watchLate flips it to reverted if it never lands).
+            log({ id, status: "unconfirmed" });
+            watchLate(log, id, outcome.hash);
+          } else {
+            log({ id, status: "ok" });
+          }
           await anchorMaturity();
           void refreshPublicBalance(account.address);
           return outcome.hash;
@@ -466,12 +534,21 @@ export function useTipJar(opts?: {
           return undefined;
         }
 
-        // No hash and no on-chain drop within the window: a real failure.
-        log({ id, status: "reverted" });
-        const err = walletErr ?? new Error("shield not confirmed");
-        setError(friendlyError(err));
-        throw err;
+        // Neither the wallet nor the chain confirmed within the window. We do
+        // NOT know it failed — a slow deposit can still land — and a needless
+        // re-shield double-deposits, so mark it "unconfirmed" (verify first),
+        // never "reverted", and return rather than throw.
+        log({
+          id,
+          status: "unconfirmed",
+          detail: `${detail} — unconfirmed, check balance before re-shielding`,
+        });
+        setError(friendlyError(walletErr ?? new Error("shield not confirmed")));
+        return undefined;
       } catch (e) {
+        // Reached only by an unexpected pre-submit throw (e.g. a bad amount):
+        // nothing was sent, so the row is "failed", not left stuck at pending.
+        log({ id, status: "failed" });
         setError(friendlyError(e));
         throw e;
       } finally {
@@ -541,18 +618,19 @@ export function useTipJar(opts?: {
         );
         clearHints();
         log({ id, hash: transactionHash, detail: swapDetail });
-        const status = await settle(transactionHash);
+        const status = await settle(transactionHash, PRIVATE_CONFIRM_MS);
 
         // The hash AVNU's SDK returns is NOT reliably the tx that lands: the
         // paymaster can revert that attempt and retry, so the swap can succeed
         // under a DIFFERENT hash than the one we hold (confirmed on mainnet:
         // SDK hash 0x7975…, actual success 0x4ab8…). settle() on this hash is
-        // therefore inconclusive — a "reverted" here can still mean the swap
-        // succeeded on a retry. So only mark "ok" when the chain confirms this
-        // exact hash; on anything else leave the row unconfirmed (do NOT mark
-        // it reverted, which would be a false negative) and point the user at
-        // the one reliable signal — their shielded STRK.
+        // therefore inconclusive — BOTH "reverted" and "unknown" here can still
+        // mean the swap succeeded on a retry. So mark the row "unconfirmed" (not
+        // "reverted", a false negative) and — because the hash is untrusted — do
+        // NOT watchLate it; point the user at the one reliable signal, their
+        // shielded STRK. Only a confirmed "ok" on this exact hash advances.
         if (status !== "ok") {
+          log({ id, status: "unconfirmed" });
           setError(
             "SWAP SENT — THE PAYMASTER MAY LAND IT UNDER A DIFFERENT HASH. PRESS SHOW TO CHECK YOUR SHIELDED STRK BEFORE TIPPING OR RETRYING.",
           );
@@ -568,7 +646,8 @@ export function useTipJar(opts?: {
         return transactionHash;
       } catch (e) {
         clearHints();
-        log({ id, status: "reverted" });
+        // A throw is a pre-submit/prover error — nothing landed, so "failed".
+        log({ id, status: "failed" });
         setError(friendlyError(e));
         throw e;
       } finally {
@@ -626,13 +705,34 @@ export function useTipJar(opts?: {
           await account.strk20InvokeTransaction(actions);
         clearHints();
         log({ id, hash: transaction_hash, detail: base });
-        log({ id, status: await settle(transaction_hash) });
+        const status = await settle(transaction_hash, PRIVATE_CONFIRM_MS);
         // No refresh(): a private tip emits no public event, so there is
         // nothing for the public wall to pick up — by design.
-        return transaction_hash;
+        if (status === "ok") {
+          log({ id, status: "ok" });
+          return transaction_hash; // confirmed → the caller celebrates
+        }
+        if (status === "reverted") {
+          log({ id, status: "reverted" });
+          setError(
+            "PRIVATE TIP REVERTED — CHECK YOUR SHIELDED STRK (SHOW) BEFORE RETRYING",
+          );
+          return undefined;
+        }
+        // Not visible within the window. The wallet's own hash is trustworthy,
+        // so keep watching — the row upgrades itself to ok/reverted if it lands.
+        // Meanwhile it reads "unconfirmed", not a misleading "pending", and we
+        // return undefined so the coin celebration never fires on a maybe.
+        log({ id, status: "unconfirmed" });
+        watchLate(log, id, transaction_hash);
+        setError(
+          "PRIVATE TIP SENT BUT NOT YET CONFIRMED — PRESS SHOW TO CHECK YOUR SHIELDED STRK BEFORE RETRYING",
+        );
+        return undefined;
       } catch (e) {
         clearHints();
-        log({ id, status: "reverted" });
+        // Rejected or errored before any tx existed — "failed", not a revert.
+        log({ id, status: "failed" });
         setError(friendlyError(e));
         throw e;
       } finally {

@@ -275,7 +275,13 @@ export function Stepper(props: {
               onClick={() =>
                 props
                   .onSwap(token, swapAmount)
-                  .then(() => setSwapped(true))
+                  // Only mark SWAPPED when the swap actually confirmed: the hook
+                  // returns a hash on a chain-confirmed "ok" and undefined on
+                  // reverted/unconfirmed. Marking it done on any resolve is what
+                  // made the step show "SWAPPED" while its log row said PENDING.
+                  .then((hash) => {
+                    if (hash) setSwapped(true);
+                  })
                   .catch(() => {})
               }
             >
