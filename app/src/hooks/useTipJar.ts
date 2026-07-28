@@ -543,15 +543,30 @@ export function useTipJar(opts?: {
         log({ id, hash: transactionHash, detail: swapDetail });
         const status = await settle(transactionHash);
         log({ id, status });
-        // A swap credits a NEW note, which is subject to the same ~10-block
-        // maturity as a shield. Re-anchor the countdown, otherwise tipping
-        // straight after a swap spends an immature note and the transaction
-        // reverts (surfacing as a generic paymaster execution error).
-        if (status !== "reverted") {
-          const head = await provider.getBlockNumber();
-          setShieldedAtBlock(head);
-          setCurrentBlock(head);
+
+        // Only claim the swap succeeded when the chain confirms it did.
+        // Returning the hash regardless made the UI mark "SWAPPED" even on a
+        // revert, and AVNU's paymaster can revert-and-retry, so a hash is not
+        // proof. On anything but a confirmed success, return undefined so the
+        // step does not advance and the user is told to verify.
+        if (status === "reverted") {
+          setError(
+            "PRIVATE SWAP REVERTED — CHECK YOUR SHIELDED STRK (SHOW) BEFORE RETRYING",
+          );
+          return undefined;
         }
+        if (status === "pending") {
+          setError(
+            "SWAP SUBMITTED BUT NOT YET CONFIRMED — PRESS SHOW TO CHECK YOUR SHIELDED STRK BEFORE TIPPING",
+          );
+          return undefined;
+        }
+        // Confirmed. A swap credits a NEW note, subject to the same ~10-block
+        // maturity as a shield — re-anchor the countdown so tipping straight
+        // after does not spend an immature note.
+        const head = await provider.getBlockNumber();
+        setShieldedAtBlock(head);
+        setCurrentBlock(head);
         return transactionHash;
       } catch (e) {
         clearHints();
