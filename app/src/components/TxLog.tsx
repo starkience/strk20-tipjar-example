@@ -114,9 +114,11 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
               </a>
             ) : (
               // No hash yet: the wallet hasn't returned one. The row still
-              // stands so the transaction is never invisible.
+              // stands so the transaction is never invisible. "waiting for
+              // wallet" is the accurate cause — a private tx can be proven and
+              // delivered before the wallet hands its hash back to the dapp.
               <span className="txlog__hash txlog__hash--nolink">
-                {e.status === "pending" ? "submitting…" : "no tx hash"}
+                {e.status === "pending" ? "waiting for wallet…" : "no tx hash"}
               </span>
             )}
           </li>

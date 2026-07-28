@@ -83,6 +83,28 @@ async function settle(hash: string, ms = 60_000): Promise<TxStatus> {
 export const MATURITY_BLOCKS = 10;
 
 /**
+ * Advance a pending row's detail while a private transaction proves. Proving can
+ * take a minute, and the wallet returns the hash only when it's done — so
+ * without this the row would sit at "waiting for wallet" and look frozen. Purely
+ * cosmetic; returns a clear function to call once the hash arrives or it fails.
+ */
+function startProvingHints(
+  log: (patch: LogPatch) => void,
+  id: string,
+  base: string,
+): () => void {
+  const t1 = setTimeout(() => log({ id, detail: `${base} — proving…` }), 8_000);
+  const t2 = setTimeout(
+    () => log({ id, detail: `${base} — still proving, this can take a minute` }),
+    30_000,
+  );
+  return () => {
+    clearTimeout(t1);
+    clearTimeout(t2);
+  };
+}
+
+/**
  * Poll the public balance until it drops by at least `atLeast`, or give up.
  *
  * This is how a shield is confirmed against the CHAIN rather than against the
@@ -487,7 +509,9 @@ export function useTipJar(opts?: {
       setError(null);
       setTxPending(true);
       const id = nextLogId();
-      log({ id, kind: "PRIVATE SWAP", detail: `${amountStr} ${token.symbol} → STRK`, status: "pending", time: Date.now() });
+      const swapDetail = `${amountStr} ${token.symbol} → STRK`;
+      log({ id, kind: "PRIVATE SWAP", detail: swapDetail, status: "pending", time: Date.now() });
+      const clearHints = startProvingHints(log, id, swapDetail);
       try {
         const sellAmount = parseUnits(amountStr, token.decimals);
         const [quote] = await getQuotes({
@@ -515,7 +539,8 @@ export function useTipJar(opts?: {
           // talks to AVNU directly using the key above.
           { paymasterBaseUrl: CONFIG.avnuPaymasterBaseUrl },
         );
-        log({ id, hash: transactionHash });
+        clearHints();
+        log({ id, hash: transactionHash, detail: swapDetail });
         const status = await settle(transactionHash);
         log({ id, status });
         // A swap credits a NEW note, which is subject to the same ~10-block
@@ -529,6 +554,7 @@ export function useTipJar(opts?: {
         }
         return transactionHash;
       } catch (e) {
+        clearHints();
         log({ id, status: "reverted" });
         setError(friendlyError(e));
         throw e;
@@ -574,7 +600,9 @@ export function useTipJar(opts?: {
       setError(null);
       setTxPending(true);
       const id = nextLogId();
-      log({ id, kind: "PRIVATE TIP", detail: `${amountStrk} STRK`, status: "pending", time: Date.now() });
+      const base = `${amountStrk} STRK`;
+      log({ id, kind: "PRIVATE TIP", detail: base, status: "pending", time: Date.now() });
+      const clearHints = startProvingHints(log, id, base);
       try {
         const actions = buildPrivateTipActions(
           CONFIG.strkAddress,
@@ -583,12 +611,14 @@ export function useTipJar(opts?: {
         );
         const { transaction_hash } =
           await account.strk20InvokeTransaction(actions);
-        log({ id, hash: transaction_hash });
+        clearHints();
+        log({ id, hash: transaction_hash, detail: base });
         log({ id, status: await settle(transaction_hash) });
         // No refresh(): a private tip emits no public event, so there is
         // nothing for the public wall to pick up — by design.
         return transaction_hash;
       } catch (e) {
+        clearHints();
         log({ id, status: "reverted" });
         setError(friendlyError(e));
         throw e;
