@@ -121,7 +121,6 @@ export function Stepper(props: {
   const isStrk = sameAddress(token.address, STRK.address);
   const balance = props.publicBalances[token.address];
   const shieldedOf = (t: Token) => props.shieldedBalances?.[t.address];
-  const needsApproval = props.approved[token.address] === false;
 
   // Deliberately not predicting the split. Observed wallet prompts itemise the
   // pool fee differently per token — added on top for STRK, taken out of the
@@ -198,12 +197,7 @@ export function Stepper(props: {
           </button>
         </div>
         <p className="step__hint">
-          {needsApproval && (
-            <span className="step__fee">
-              NEEDS AN APPROVAL FIRST — TWO PROMPTS ·{" "}
-            </span>
-          )}
-          {`PLUS A POOL FEE (~${POOL_FEE_LABEL} STRK, CONVERTED FOR OTHER TOKENS)`}
+          {`A POOL FEE APPLIES (~${POOL_FEE_LABEL} STRK, CONVERTED FOR OTHER TOKENS)`}
         </p>
       </Step>
 
