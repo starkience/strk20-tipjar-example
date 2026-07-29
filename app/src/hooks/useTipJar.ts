@@ -49,6 +49,14 @@ const PUBLIC_CONFIRM_MS = 60_000;
 const PRIVATE_CONFIRM_MS = 90_000; // proving + relay + inclusion runs longer.
 /** How long a background upgrade keeps watching an unconfirmed (trusted) hash. */
 const LATE_WATCH_MS = 4 * 60_000;
+/**
+ * How long a shield waits for the deposit to actually show on-chain (the public
+ * balance falling). A first shield is approve + deposit + the user reading two
+ * wallet prompts, so give it real room. The button stays locked for the whole
+ * wait — which is what prevents a second, duplicate deposit — and the visible
+ * CANCEL (after 45s) is the human escape hatch if a prompt is dismissed.
+ */
+const SHIELD_CONFIRM_MS = 150_000;
 
 /** What the CHAIN says about a hash. "unknown" ≠ failure — see settle(). */
 type SettleOutcome = "ok" | "reverted" | "unknown";
@@ -163,6 +171,7 @@ async function waitForBalanceDrop(
   before: bigint,
   atLeast: bigint,
   ms = 45_000,
+  shouldAbort?: () => boolean,
 ): Promise<boolean> {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
@@ -174,6 +183,9 @@ async function waitForBalanceDrop(
     } catch {
       // Transient RPC error — keep polling until the deadline.
     }
+    // Give up early when asked — checked AFTER the balance read so a drop that
+    // lands on this same tick still wins over the abort.
+    if (shouldAbort?.()) return false;
   }
   return false;
 }
@@ -469,81 +481,102 @@ export function useTipJar(opts?: {
         const actions = buildShieldActions(token.address, amount);
         const walletCall = account.strk20InvokeTransaction(actions);
 
-        // Confirm the shield against whichever proves it first: the wallet's
-        // reply, or the tokens visibly leaving the public account on-chain.
+        // Confirm the shield against the CHAIN — the tokens visibly leaving the
+        // public account — and NEVER against the wallet's returned hash.
         //
-        // A wallet ERROR must NOT win this race. The failure we are fixing is a
-        // wallet that mines the shield and then reports a network error anyway —
-        // concluding "failed" on that error would be exactly wrong. So a wallet
-        // error is captured and only consulted if the chain also shows no drop.
-        type Outcome = { hash: string } | { chain: boolean };
+        // Why the hash can't be trusted: the FIRST shield of a token is an
+        // ERC-20 `approve` THEN a pool `deposit` — two separate transactions,
+        // because the pool forbids batching them ("two transactions, never
+        // one"). The wallet can hand back a hash for the approve leg WHILE the
+        // deposit is still awaiting confirmation — so racing on that hash marked
+        // the shield "done", logged it, and started the maturity clock before a
+        // single token had moved, while the wallet was still asking to confirm.
+        // The balance falling by ~the amount is the only proof the DEPOSIT
+        // landed. Because we wait for that (not the hash), the button stays
+        // locked through the whole approve→deposit sequence — which is also what
+        // stops a second, duplicate deposit.
+        //
+        // The wallet promise is watched only to LINK the tx and to notice a
+        // rejection. A wallet ERROR must not by itself mean failure: a wallet
+        // can mine the deposit and still report a network error, so after an
+        // error we keep watching briefly for the drop before giving up.
+        let walletHash: string | undefined;
         let walletErr: unknown;
-        const walletHash: Promise<Outcome> = walletCall.then(
-          (r) => ({ hash: r.transaction_hash }),
+        let walletErrAt: number | null = null;
+        walletCall.then(
+          (r) => {
+            walletHash = r.transaction_hash;
+            log({ id, hash: r.transaction_hash });
+          },
           (err) => {
             walletErr = err;
-            return new Promise<Outcome>(() => {}); // an error never wins
+            walletErrAt = Date.now();
           },
         );
-        const chain: Promise<Outcome> =
-          before === null
-            ? new Promise<Outcome>((resolve) =>
-                setTimeout(() => resolve({ chain: false }), 45_000),
-              )
-            : waitForBalanceDrop(
-                account.address,
-                token,
-                before,
-                (amount * 9n) / 10n,
-              ).then((dropped) => ({ chain: dropped }));
 
-        const outcome = await Promise.race<Outcome>([walletHash, chain]);
-
-        if ("hash" in outcome) {
-          log({ id, hash: outcome.hash });
-          const status = await settle(outcome.hash);
-          if (status === "reverted") {
-            log({ id, status: "reverted" });
-            setError("SHIELD REVERTED — CHECK YOUR BALANCE BEFORE RETRYING");
+        // No baseline to measure the drop against (the pre-read failed): we have
+        // no chain signal, so fall back to the wallet's reply — best effort.
+        if (before === null) {
+          try {
+            await walletCall;
+          } catch {
+            // handled below via walletErr
+          }
+          if (walletErr !== undefined) {
+            log({ id, status: "failed" });
+            setError(friendlyError(walletErr));
             return undefined;
           }
-          if (status === "unknown") {
-            // Submitted with the wallet's own hash but not visible yet — keep
-            // watching so the row confirms itself, and anchor maturity
-            // optimistically (watchLate flips it to reverted if it never lands).
-            log({ id, status: "unconfirmed" });
-            watchLate(log, id, outcome.hash);
-          } else {
-            log({ id, status: "ok" });
-          }
-          await anchorMaturity();
-          void refreshPublicBalance(account.address);
-          return outcome.hash;
+          log({ id, status: "unconfirmed", detail: `${detail} — check balance` });
+          return walletHash;
         }
 
-        if (outcome.chain) {
-          // The shield landed on-chain but the wallet was slow or errored.
-          // Proceed now; backfill the hash if the wallet ever answers. The copy
-          // must NOT invite a re-shield — this branch re-enables the button.
-          log({ id, status: "ok", detail: `${detail} — done, don't re-shield` });
+        // Watch the public balance fall by ~the shielded amount. Give the whole
+        // approve→deposit sequence room; after a wallet error, allow a short
+        // grace for a mined-but-errored deposit to appear, then stop.
+        const dropped = await waitForBalanceDrop(
+          account.address,
+          token,
+          before,
+          (amount * 9n) / 10n,
+          SHIELD_CONFIRM_MS,
+          () => walletErrAt !== null && Date.now() - walletErrAt > 20_000,
+        );
+
+        if (dropped) {
+          // The deposit landed — the tokens left the account. Only NOW is it
+          // real: mark ok and start the maturity clock. Backfill the hash if the
+          // wallet is still catching up.
+          log({ id, status: "ok" });
           await anchorMaturity();
           void refreshPublicBalance(account.address);
-          walletCall
-            .then((r) => log({ id, hash: r.transaction_hash, detail }))
-            .catch(() => {});
+          if (!walletHash) {
+            walletCall
+              .then((r) => log({ id, hash: r.transaction_hash }))
+              .catch(() => {});
+          }
+          return walletHash;
+        }
+
+        if (walletErr !== undefined) {
+          // The wallet rejected/errored and nothing left the account within the
+          // grace window: it did not go through. Safe to retry.
+          log({ id, status: "failed" });
+          setError(friendlyError(walletErr));
           return undefined;
         }
 
-        // Neither the wallet nor the chain confirmed within the window. We do
-        // NOT know it failed — a slow deposit can still land — and a needless
-        // re-shield double-deposits, so mark it "unconfirmed" (verify first),
-        // never "reverted", and return rather than throw.
+        // The window elapsed with no drop and no error: genuinely unconfirmed.
+        // A slow deposit can still land, and a needless re-shield double-deposits,
+        // so mark "unconfirmed" (verify first), never "reverted".
         log({
           id,
           status: "unconfirmed",
           detail: `${detail} — unconfirmed, check balance before re-shielding`,
         });
-        setError(friendlyError(walletErr ?? new Error("shield not confirmed")));
+        setError(
+          "SHIELD NOT CONFIRMED YET — CHECK YOUR BALANCE BEFORE RE-SHIELDING",
+        );
         return undefined;
       } catch (e) {
         // Reached only by an unexpected pre-submit throw (e.g. a bad amount):
