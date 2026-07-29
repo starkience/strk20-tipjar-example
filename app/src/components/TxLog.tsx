@@ -41,11 +41,16 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
   // clearProps strips the inline height/opacity GSAP applies, so a row can never
   // be left collapsed or invisible if the animation is interrupted mid-flight —
   // which is how transactions "stopped showing up".
+  //
+  // Only a FRESH row (made this run) animates in. Rehydrated history is loaded
+  // in bulk on connect; animating its top row made a plain reconnect look like a
+  // transaction had just happened.
   const topId = props.entries[0]?.id;
+  const topIsFresh = props.entries[0]?.session === true;
   useGSAP(
     () => {
       const first = listRef.current?.firstElementChild;
-      if (!first || !topId) return;
+      if (!first || !topId || !topIsFresh) return;
       gsap
         .timeline()
         .from(first, {

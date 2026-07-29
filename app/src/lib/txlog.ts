@@ -132,13 +132,23 @@ export function storageKey(address: string): string {
   return `${STORAGE_PREFIX}:${normalizeHash(address)}`;
 }
 
-/** Rehydrate this address's session rows. Returns [] on anything unexpected. */
+/**
+ * Rehydrate this address's rows from a PREVIOUS run. Returns [] on anything
+ * unexpected.
+ *
+ * `session` is cleared on every rehydrated row: it means "made in the CURRENT
+ * run" — the flag that paints a row gold and animates it in. A row loaded from
+ * storage is history, not something that just happened, so it must render like
+ * chain history (plain), not like a fresh action. Leaving the flag set made a
+ * plain reconnect look like it had just SHIELDED.
+ */
 export function loadSession(address: string): LogEntry[] {
   try {
     const raw = globalThis.localStorage?.getItem(storageKey(address));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as LogEntry[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as LogEntry[]).map((e) => ({ ...e, session: false }));
   } catch {
     return [];
   }
