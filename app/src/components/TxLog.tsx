@@ -137,10 +137,12 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
                 {e.hash.slice(0, 10)}…
               </a>
             ) : (
-              // No hash yet: the wallet hasn't returned one. The row still
-              // stands so the transaction is never invisible. The placeholder
-              // states the accurate cause for each case — a private tx can be
-              // proven and delivered before the wallet hands its hash back.
+              // No hash: the wallet never returned one. The row still stands so
+              // the transaction is never invisible, and the placeholder states
+              // the accurate cause. In particular an "ok" row with no hash is a
+              // SHIELD confirmed against the chain (the tokens left the account)
+              // whose wallet simply never handed a hash back — it succeeded, so
+              // it must not read as an error.
               <span className="txlog__hash txlog__hash--nolink">
                 {e.status === "pending"
                   ? "waiting for wallet…"
@@ -148,7 +150,9 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
                     ? "unconfirmed — press SHOW to verify"
                     : e.status === "failed"
                       ? "not sent"
-                      : "no tx hash"}
+                      : e.status === "ok"
+                        ? "confirmed on-chain — no hash from wallet"
+                        : "no tx hash"}
               </span>
             )}
           </li>
