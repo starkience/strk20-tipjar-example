@@ -23,25 +23,13 @@
 
 import { normalizeHash } from "./address";
 
-// A row's status is FOUR distinct truths, not one. Conflating them is what made
-// the log lie: a wallet rejection is not a revert, and "we couldn't confirm" is
-// not "it failed". Each maps to different advice for the user.
+// Deliberately simple: a transaction either went through or it didn't, and
+// until we know, it's pending. Three states, nothing more.
 //
-//   pending      — submitted (or submitting); no on-chain result yet.
-//   ok           — the chain confirmed it SUCCEEDED.
-//   reverted     — the chain confirmed it was accepted but REVERTED on execution.
-//   failed       — it never went through (rejected in wallet, or errored before
-//                  any tx existed). Nothing happened; safe to retry.
-//   unconfirmed  — a hash came back but we could not confirm it within the
-//                  window. It MIGHT have landed (a paymaster can relay it under a
-//                  different hash, or inclusion is just slow) — verify before
-//                  retrying, don't assume failure.
-export type TxStatus =
-  | "pending"
-  | "ok"
-  | "reverted"
-  | "failed"
-  | "unconfirmed";
+//   pending — in flight, or not yet confirmable.
+//   ok      — it went through (the chain confirms it).
+//   failed  — it did not go through (reverted, rejected, or errored).
+export type TxStatus = "pending" | "ok" | "failed";
 
 export type LogEntry = {
   /** Client id, assigned at submit time. Stable across hash/status patches. */

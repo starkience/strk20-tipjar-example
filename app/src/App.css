@@ -881,20 +881,10 @@
   background: var(--gold-lit);
 }
 
-/* Reverted transactions must not read as successful */
-.txlog__row.is-reverted {
+/* Failed: it did not go through. Red so it can never read as success. */
+.txlog__row.is-failed {
   background: #fff1f0;
   border-color: var(--red);
-}
-/* Unconfirmed: it MIGHT have landed — amber "attention", not red "failed". */
-.txlog__row.is-unconfirmed {
-  background: #fffbeb;
-  border-color: #f59e0b;
-}
-/* Failed to send: nothing happened. Neutral — no alarm, safe to retry. */
-.txlog__row.is-failed {
-  background: #fafafa;
-  border-color: #d4d4d8;
 }
 .txlog__status {
   font-family: var(--display);
@@ -903,12 +893,6 @@
 }
 .txlog__status--bad {
   color: var(--red);
-}
-.txlog__status--warn {
-  color: #b45309;
-}
-.txlog__status--muted {
-  color: #71717a;
 }
 /* Honest footnote: private sends never appear in a wallet's activity list. */
 .txlog__note {

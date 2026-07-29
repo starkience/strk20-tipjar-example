@@ -95,32 +95,13 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
           <li
             key={e.id}
             className={`txlog__row ${e.session ? "is-session" : ""} ${
-              e.status === "reverted"
-                ? "is-reverted"
-                : e.status === "unconfirmed"
-                  ? "is-unconfirmed"
-                  : e.status === "failed"
-                    ? "is-failed"
-                    : ""
+              e.status === "failed" ? "is-failed" : ""
             }`}
           >
             <span className="txlog__kind">
               {e.kind}
-              {/* Each status is a distinct truth, and each gets distinct copy:
-                  a rejection ("NOT SENT") must never read like an on-chain
-                  revert, and "we couldn't confirm" ("UNCONFIRMED") must never
-                  read like either. */}
-              {e.status === "reverted" && (
-                <span className="txlog__status txlog__status--bad"> REVERTED</span>
-              )}
-              {e.status === "unconfirmed" && (
-                <span className="txlog__status txlog__status--warn">
-                  {" "}
-                  UNCONFIRMED
-                </span>
-              )}
               {e.status === "failed" && (
-                <span className="txlog__status txlog__status--muted"> NOT SENT</span>
+                <span className="txlog__status txlog__status--bad"> FAILED</span>
               )}
               {e.status === "pending" && (
                 <span className="txlog__status"> PENDING</span>
@@ -137,22 +118,15 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
                 {e.hash.slice(0, 10)}…
               </a>
             ) : (
-              // No hash: the wallet never returned one. The row still stands so
-              // the transaction is never invisible, and the placeholder states
-              // the accurate cause. In particular an "ok" row with no hash is a
-              // SHIELD confirmed against the chain (the tokens left the account)
-              // whose wallet simply never handed a hash back — it succeeded, so
-              // it must not read as an error.
+              // No hash from the wallet — the row still stands. "confirmed" is an
+              // ok row with no hash (a shield can land without the wallet ever
+              // returning one); "pending…" while in flight; "—" if it failed.
               <span className="txlog__hash txlog__hash--nolink">
                 {e.status === "pending"
-                  ? "waiting for wallet…"
-                  : e.status === "unconfirmed"
-                    ? "unconfirmed — press SHOW to verify"
-                    : e.status === "failed"
-                      ? "not sent"
-                      : e.status === "ok"
-                        ? "confirmed on-chain — no hash from wallet"
-                        : "no tx hash"}
+                  ? "pending…"
+                  : e.status === "failed"
+                    ? "—"
+                    : "confirmed"}
               </span>
             )}
           </li>

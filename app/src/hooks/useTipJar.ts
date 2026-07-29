@@ -69,7 +69,7 @@ type SettleOutcome = "ok" | "reverted" | "unknown";
  *   "unknown"  — not visible within the window. This is NOT a failure: a
  *                paymaster can land a private tx under a DIFFERENT hash than the
  *                one it handed back, and inclusion can simply lag — so callers
- *                mark such a row "unconfirmed", never "reverted".
+ *                leave such a row pending, never mark it failed.
  *
  * `waitForTransaction` is deliberately not used: in starknet.js v10 it does not
  * reject on revert (its default errorStates are empty) and it gives up after a
@@ -94,14 +94,14 @@ async function settle(hash: string, ms = PUBLIC_CONFIRM_MS): Promise<SettleOutco
 }
 
 /**
- * Keep watching an "unconfirmed" row in the background and upgrade it the moment
+ * Keep watching a still-pending row in the background and resolve it the moment
  * the chain shows a result — so a transaction that lands late stops reading
- * "unconfirmed" without the user lifting a finger. The row is addressed by its
+ * "pending" without the user lifting a finger. The row is addressed by its
  * client id, so a late patch is always safe. Fire-and-forget and time-bounded.
  *
  * ONLY use this on a hash we trust to be the one that actually lands (a wallet's
  * own submission). Never on AVNU's SDK hash: its paymaster can revert-and-retry
- * under a new hash, so a "reverted" reading there is a false negative.
+ * under a new hash, so a REVERTED reading there would be a false negative.
  */
 function watchLate(
   log: (patch: LogPatch) => void,
@@ -116,7 +116,7 @@ function watchLate(
         execution_status?: string;
       };
       if (receipt?.execution_status === "REVERTED") {
-        log({ id, status: "reverted" });
+        log({ id, status: "failed" });
         return;
       }
       if (receipt?.execution_status === "SUCCEEDED") {
@@ -207,8 +207,15 @@ async function walletSupportsStrk20(
 export type TxKind = "PUBLIC TIP" | "SHIELD" | "PRIVATE SWAP" | "PRIVATE TIP";
 
 let logSeq = 0;
-/** A client id for a log row, assigned before the tx is even sent. */
-const nextLogId = () => `tx-${(logSeq += 1)}`;
+/**
+ * A client id for a log row, assigned before the tx is even sent. It carries a
+ * per-load time prefix: the counter resets to 0 on every reload, but persisted
+ * rows keep the ids they were saved with, so a bare `tx-1` would COLLIDE with a
+ * rehydrated row — and upsertTx would then patch that old row instead of adding
+ * a new one, mislabeling and mis-ordering it. The time prefix keeps each load's
+ * ids disjoint from any previous load's.
+ */
+const nextLogId = () => `tx-${Date.now().toString(36)}-${(logSeq += 1)}`;
 
 export function useTipJar(opts?: {
   /**
@@ -412,14 +419,11 @@ export function useTipJar(opts?: {
         const { transaction_hash } = await account.execute(calls);
         log({ id, hash: transaction_hash });
         const outcome = await settle(transaction_hash, PUBLIC_CONFIRM_MS);
-        if (outcome === "unknown") {
-          // Submitted with a canonical wallet hash but not visible yet — keep
-          // watching so the row confirms itself when it lands.
-          log({ id, status: "unconfirmed" });
-          watchLate(log, id, transaction_hash);
-        } else {
-          log({ id, status: outcome });
-        }
+        if (outcome === "ok") log({ id, status: "ok" });
+        else if (outcome === "reverted") log({ id, status: "failed" });
+        // "unknown": not visible yet. Leave it pending and keep watching so the
+        // row confirms itself when it lands.
+        else watchLate(log, id, transaction_hash);
         await refresh();
         void refreshPublicBalance(account.address);
         return transaction_hash;
@@ -527,7 +531,7 @@ export function useTipJar(opts?: {
             setError(friendlyError(walletErr));
             return undefined;
           }
-          log({ id, status: "unconfirmed", detail: `${detail} — check balance` });
+          log({ id, status: "pending", detail: `${detail} — check your balance` });
           return walletHash;
         }
 
@@ -566,13 +570,13 @@ export function useTipJar(opts?: {
           return undefined;
         }
 
-        // The window elapsed with no drop and no error: genuinely unconfirmed.
-        // A slow deposit can still land, and a needless re-shield double-deposits,
-        // so mark "unconfirmed" (verify first), never "reverted".
+        // The window elapsed with no drop and no error: we still don't know.
+        // Leave it PENDING — never a false "failed", which would invite a
+        // double deposit — and a slow deposit can still land.
         log({
           id,
-          status: "unconfirmed",
-          detail: `${detail} — unconfirmed, check balance before re-shielding`,
+          status: "pending",
+          detail: `${detail} — still confirming, check your balance`,
         });
         setError(
           "SHIELD NOT CONFIRMED YET — CHECK YOUR BALANCE BEFORE RE-SHIELDING",
@@ -658,12 +662,15 @@ export function useTipJar(opts?: {
         // under a DIFFERENT hash than the one we hold (confirmed on mainnet:
         // SDK hash 0x7975…, actual success 0x4ab8…). settle() on this hash is
         // therefore inconclusive — BOTH "reverted" and "unknown" here can still
-        // mean the swap succeeded on a retry. So mark the row "unconfirmed" (not
-        // "reverted", a false negative) and — because the hash is untrusted — do
-        // NOT watchLate it; point the user at the one reliable signal, their
-        // shielded STRK. Only a confirmed "ok" on this exact hash advances.
+        // mean the swap succeeded on a retry. So leave the row PENDING (never
+        // failed, a false negative) and — because the hash is untrusted — do NOT
+        // watchLate it; point the user at the one reliable signal, their shielded
+        // STRK. Only a confirmed "ok" on this exact hash advances.
         if (status !== "ok") {
-          log({ id, status: "unconfirmed" });
+          // The SDK's hash is unreliable (the paymaster can land the swap under
+          // a different hash), so we cannot confirm from here — leave the row
+          // PENDING and point the user at their one reliable signal, their
+          // shielded STRK. Never mark it failed: that would invite a re-swap.
           setError(
             "SWAP SENT — THE PAYMASTER MAY LAND IT UNDER A DIFFERENT HASH. PRESS SHOW TO CHECK YOUR SHIELDED STRK BEFORE TIPPING OR RETRYING.",
           );
@@ -746,17 +753,16 @@ export function useTipJar(opts?: {
           return transaction_hash; // confirmed → the caller celebrates
         }
         if (status === "reverted") {
-          log({ id, status: "reverted" });
+          log({ id, status: "failed" });
           setError(
             "PRIVATE TIP REVERTED — CHECK YOUR SHIELDED STRK (SHOW) BEFORE RETRYING",
           );
           return undefined;
         }
         // Not visible within the window. The wallet's own hash is trustworthy,
-        // so keep watching — the row upgrades itself to ok/reverted if it lands.
-        // Meanwhile it reads "unconfirmed", not a misleading "pending", and we
-        // return undefined so the coin celebration never fires on a maybe.
-        log({ id, status: "unconfirmed" });
+        // so leave the row PENDING and keep watching — it upgrades itself to
+        // ok/failed if it lands. Return undefined so the coin celebration never
+        // fires on a maybe.
         watchLate(log, id, transaction_hash);
         setError(
           "PRIVATE TIP SENT BUT NOT YET CONFIRMED — PRESS SHOW TO CHECK YOUR SHIELDED STRK BEFORE RETRYING",

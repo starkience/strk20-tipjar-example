@@ -125,9 +125,10 @@ export default function App() {
     return hash;
   };
 
-  // Session transactions first, then public tips already on-chain. mergeLog
-  // dedupes by hash: a public tip made this session is in both lists, and two
-  // rows with the same key render unreliably (see lib/txlog.ts).
+  // Merge this session's rows with the public tips already on-chain, then order
+  // strictly newest-first by time. mergeLog dedupes by hash (a public tip made
+  // this session is in both lists); the sort is what keeps the list in a single
+  // honest chronological order regardless of when each row was added or loaded.
   const entries = useMemo<LogEntry[]>(
     () =>
       mergeLog(
@@ -138,7 +139,7 @@ export default function App() {
           time: t.timestamp * 1000,
           detail: `${formatDisplay(t.amount, 18)} STRK`,
         })),
-      ),
+      ).sort((a, b) => b.time - a.time),
     [session, jar.tips],
   );
 
