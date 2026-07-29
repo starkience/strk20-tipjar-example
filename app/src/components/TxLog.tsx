@@ -13,7 +13,11 @@ import type { LogEntry } from "../lib/txlog";
 
 export type { LogEntry };
 
-export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
+export function TxLog(props: {
+  entries: LogEntry[];
+  onClear: () => void;
+  onClose: () => void;
+}) {
   const panelRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -85,9 +89,20 @@ export function TxLog(props: { entries: LogEntry[]; onClose: () => void }) {
     <aside className="txlog" ref={panelRef}>
       <div className="txlog__head">
         <span className="txlog__title">TX LOG</span>
-        <button className="txlog__close" onClick={props.onClose} aria-label="Hide">
-          ✕
-        </button>
+        <div className="txlog__actions">
+          {props.entries.length > 0 && (
+            <button className="txlog__clear" onClick={props.onClear}>
+              CLEAR
+            </button>
+          )}
+          <button
+            className="txlog__close"
+            onClick={props.onClose}
+            aria-label="Hide"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <ul className="txlog__list" ref={listRef}>

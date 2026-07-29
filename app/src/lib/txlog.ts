@@ -153,3 +153,43 @@ export function saveSession(address: string, session: LogEntry[]): void {
     // Storage unavailable/full — non-fatal; the log still works in-memory.
   }
 }
+
+// Clearing the log. Session rows are the app's own to drop, but on-chain public
+// tips are re-derived from events and can't be deleted — so "clear" also records
+// the moment it happened, and the panel hides everything from before it. New
+// activity (after the mark) shows normally.
+const CLEARED_PREFIX = "tipjar.txlog.cleared.v1";
+
+/** When the user last cleared this address's log (ms), or 0 if never. */
+export function loadClearedAt(address: string): number {
+  try {
+    const raw = globalThis.localStorage?.getItem(
+      `${CLEARED_PREFIX}:${normalizeHash(address)}`,
+    );
+    const n = raw ? Number(raw) : 0;
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Record a clear at `ts`, so rows from before it stay hidden across reloads. */
+export function saveClearedAt(address: string, ts: number): void {
+  try {
+    globalThis.localStorage?.setItem(
+      `${CLEARED_PREFIX}:${normalizeHash(address)}`,
+      String(ts),
+    );
+  } catch {
+    // non-fatal
+  }
+}
+
+/** Drop this address's saved session rows entirely. */
+export function clearStoredSession(address: string): void {
+  try {
+    globalThis.localStorage?.removeItem(storageKey(address));
+  } catch {
+    // non-fatal
+  }
+}

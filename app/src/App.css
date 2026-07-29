@@ -594,6 +594,25 @@
   transform: translateY(4px);
   box-shadow: 0 0 0 var(--ink);
 }
+.txlog__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.txlog__clear {
+  font-family: var(--display);
+  font-size: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  padding: 5px 7px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 var(--ink);
+}
+.txlog__clear:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 var(--ink);
+}
 .txlog__list {
   list-style: none;
   margin: 0;

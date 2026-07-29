@@ -9,8 +9,11 @@ import { TipForm } from "./components/TipForm";
 import { TipWall } from "./components/TipWall";
 import { TxLog } from "./components/TxLog";
 import {
+  clearStoredSession,
+  loadClearedAt,
   loadSession,
   mergeLog,
+  saveClearedAt,
   saveSession,
   upsertTx,
   type LogEntry,
@@ -41,12 +44,29 @@ export default function App() {
   // address's rows on connect, and save on every change. On disconnect we clear
   // the view but DON'T wipe storage, so reconnecting restores the history.
   const jarAddress = jar.address;
+  // Rows from before the last CLEAR stay hidden (on-chain public tips can't be
+  // deleted, only hidden). 0 = never cleared.
+  const [clearedAt, setClearedAt] = useState(0);
   useEffect(() => {
     setSession(jarAddress ? loadSession(jarAddress) : []);
+    setClearedAt(jarAddress ? loadClearedAt(jarAddress) : 0);
   }, [jarAddress]);
   useEffect(() => {
     if (jarAddress) saveSession(jarAddress, session);
   }, [jarAddress, session]);
+
+  // Wipe the local log: drop this session's rows and their saved copy, and mark
+  // "cleared now" so the on-chain tips from before are hidden too. New activity
+  // fills a fresh, empty log.
+  const clearLog = () => {
+    const ts = Date.now();
+    setSession([]);
+    setClearedAt(ts);
+    if (jarAddress) {
+      clearStoredSession(jarAddress);
+      saveClearedAt(jarAddress, ts);
+    }
+  };
 
   const tipButtonRef = useRef<HTMLButtonElement>(null);
   const coinTargetRef = useRef<HTMLDivElement>(null);
@@ -139,8 +159,10 @@ export default function App() {
           time: t.timestamp * 1000,
           detail: `${formatDisplay(t.amount, 18)} STRK`,
         })),
-      ).sort((a, b) => b.time - a.time),
-    [session, jar.tips],
+      )
+        .filter((e) => e.time > clearedAt)
+        .sort((a, b) => b.time - a.time),
+    [session, jar.tips, clearedAt],
   );
 
   return (
@@ -247,7 +269,13 @@ export default function App() {
           </div>
         </main>
 
-        {showLog && <TxLog entries={entries} onClose={() => setShowLog(false)} />}
+        {showLog && (
+          <TxLog
+            entries={entries}
+            onClear={clearLog}
+            onClose={() => setShowLog(false)}
+          />
+        )}
       </div>
     </div>
   );
